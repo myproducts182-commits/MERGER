@@ -9,7 +9,7 @@
  */
 import { ProviderError, type CheckResult, type ProviderAdapter } from "../types";
 
-const BASE = (process.env.KIE_API_BASE || "https://api.kie.ai").replace(/\/+$/, "");
+const BASE = ((process.env.KIE_API_BASE || "https://api.kie.ai").trim()).replace(/\/+$/, "");
 
 /** نداء موحد: يرمي ProviderError بالحالة الداخلية (code) أو حالة HTTP عند تعذر التحليل */
 async function kieFetch(path: string, key: string, init?: RequestInit & { timeoutMs?: number }): Promise<Record<string, unknown>> {

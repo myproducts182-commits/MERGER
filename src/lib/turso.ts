@@ -8,8 +8,9 @@ let _client: Client | null = null;
 let schemaPromise: Promise<void> | null = null;
 
 export function getTurso(): Client {
-  const url = process.env.TURSO_DATABASE_URL;
-  const token = process.env.TURSO_AUTH_TOKEN;
+  // تنظيف إلزامي من مسافات/أسطر لاصقة — خطأ شائع عند اللصق في Vercel (يظهر كـ URL_INVALID من libsql)
+  const url = (process.env.TURSO_DATABASE_URL || "").trim();
+  const token = (process.env.TURSO_AUTH_TOKEN || "").trim();
   if (!url || !token) {
     throw new Error("TURSO_DATABASE_URL / TURSO_AUTH_TOKEN غير مضبوطة في متغيرات البيئة");
   }
