@@ -31,7 +31,7 @@ export interface TaskInfo {
   type: "image" | "video" | "merge";
   model: string;
   provider: string | null;
-  status: "pending" | "processing" | "completed" | "failed";
+  status: "pending" | "processing" | "completed" | "failed" | "cancelled";
   progress: number;
   prompt: string;
   result_urls: string[];

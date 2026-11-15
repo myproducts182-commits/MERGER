@@ -78,6 +78,10 @@ export interface TaskPatch {
 }
 
 export async function updateTask(taskId: string, patch: TaskPatch): Promise<void> {
+  // حماية الإلغاء اليدوي: المهمة الملغاة نهائية — لا تُكتب عليها أي حالة/تقدم/روابط/محاولات
+  const guard = await query("SELECT status FROM tasks WHERE id = ?", [taskId]);
+  if (String(guard.rows[0]?.status ?? "") === "cancelled") return;
+
   // ملاحظة: دمج attempts يتم بقراءة-كتابة؛ الاستخدام لدينا أحادي الكاتب لكل مهمة عمليًا.
   let attemptsJson: string | null = null;
   if (patch.append_attempt) {
@@ -101,7 +105,7 @@ export async function updateTask(taskId: string, patch: TaskPatch): Promise<void
   if (patch.status !== undefined) {
     sets.push("status = ?");
     args.push(patch.status);
-    if (patch.status === "completed") {
+    if (patch.status === "completed" || patch.status === "cancelled") {
       sets.push("completed_at = COALESCE(completed_at, datetime('now'))");
     }
   }
@@ -164,6 +168,7 @@ export interface TaskStats {
   completed: number;
   failed: number;
   processing: number;
+  cancelled: number;
 }
 
 export async function taskStats(): Promise<TaskStats> {
@@ -172,7 +177,8 @@ export async function taskStats(): Promise<TaskStats> {
        COUNT(*) AS total,
        COALESCE(SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END), 0) AS completed,
        COALESCE(SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END), 0) AS failed,
-       COALESCE(SUM(CASE WHEN status IN ('processing','pending') THEN 1 ELSE 0 END), 0) AS processing
+       COALESCE(SUM(CASE WHEN status IN ('processing','pending') THEN 1 ELSE 0 END), 0) AS processing,
+       COALESCE(SUM(CASE WHEN status = 'cancelled' THEN 1 ELSE 0 END), 0) AS cancelled
      FROM tasks`,
   );
   const r = rs.rows[0];
@@ -181,5 +187,27 @@ export async function taskStats(): Promise<TaskStats> {
     completed: Number(r?.completed ?? 0),
     failed: Number(r?.failed ?? 0),
     processing: Number(r?.processing ?? 0),
+    cancelled: Number(r?.cancelled ?? 0),
   };
+}
+
+/** نتيجة الإلغاء اليدوي */
+export type CancelOutcome = "ok" | "not-found" | "not-active";
+
+/** إلغاء يدوي نهائي — مقبول فقط للمهام غير المنتهية (processing/pending) */
+export async function cancelTask(taskId: string): Promise<CancelOutcome> {
+  const t = await getTask(taskId);
+  if (!t) return "not-found";
+  if (t.status !== "processing" && t.status !== "pending") return "not-active";
+  await updateTask(taskId, {
+    status: "cancelled",
+    error_message: "مُلغاة يدويًا من لوحة الإدارة",
+  });
+  return "ok";
+}
+
+/** حذف نهائي للمهمة من القاعدة — يعيد true إن حُذفت فعلًا */
+export async function deleteTask(taskId: string): Promise<boolean> {
+  const rs = await query("DELETE FROM tasks WHERE id = ?", [taskId]);
+  return rs.rowsAffected > 0;
 }

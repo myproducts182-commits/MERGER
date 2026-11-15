@@ -2,12 +2,14 @@
 
 /**
  * لوحة المهام: شرائح إحصائيات + قائمة أحدث المهام تتحدث تلقائيًا كل ~5 ثوانٍ.
- * تعرض النوع والحالة وشريط التقدم والموديل ومقتطف الوصف ووقت الإنشاء وروابط النتائج وعدد المحاولات.
+ * تعرض النوع والحالة وشريط التقدم والموديل ومقتطف الوصف ووقت الإنشاء وروابط النتائج وعدد المحاولات،
+ * مع زرّي إلغاء (نهائي) وحذف (إزالة من القاعدة) لكل مهمة.
  */
 import { useCallback, useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Ban, ExternalLink, Loader2, RefreshCw, Trash2 } from "lucide-react";
 import { timeAgo, type TaskInfo } from "./types";
 
 const TYPE_LABEL: Record<TaskInfo["type"], string> = { image: "صورة", video: "فيديو", merge: "دمج" };
@@ -16,6 +18,7 @@ const STATUS_LABEL: Record<TaskInfo["status"], string> = {
   processing: "قيد المعالجة",
   completed: "مكتملة",
   failed: "فاشلة",
+  cancelled: "ملغاة",
 };
 
 function typeBadge(t: TaskInfo["type"]) {
@@ -31,6 +34,7 @@ function typeBadge(t: TaskInfo["type"]) {
 function statusBadge(t: TaskInfo) {
   if (t.status === "completed") return <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-400/30 hover:bg-emerald-500/25">✅ {STATUS_LABEL[t.status]}</Badge>;
   if (t.status === "failed") return <Badge className="bg-red-500/15 text-red-300 border-red-400/30 hover:bg-red-500/25">❌ {STATUS_LABEL[t.status]}</Badge>;
+  if (t.status === "cancelled") return <Badge className="bg-slate-500/20 text-slate-300 border-slate-400/30 hover:bg-slate-500/30">🚫 {STATUS_LABEL[t.status]}</Badge>;
   return <Badge className="bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/25 animate-pulse">⏳ {STATUS_LABEL[t.status]}</Badge>;
 }
 
@@ -44,9 +48,10 @@ function StatChip({ label, value, cls }: { label: string; value: number; cls: st
 }
 
 export default function TasksCard() {
-  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, processing: 0 });
+  const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, processing: 0, cancelled: 0 });
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,6 +72,34 @@ export default function TasksCard() {
     return () => clearInterval(t);
   }, [load]);
 
+  /** إلغاء نهائي لمهمة جارية — يتوقف فورًا ولن تُستأنف */
+  async function cancelTask(t: TaskInfo) {
+    if (!window.confirm("إلغاء هذه المهمة نهائيًا؟ لن تُستأنف حتى لو توفرت مفاتيح صالحة.")) return;
+    setRowBusy(t.id);
+    try {
+      await fetch(`/api/tasks/${t.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "cancel" }),
+      });
+      await load();
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
+  /** حذف نهائي للمهمة من قاعدة البيانات مع نتائجها */
+  async function deleteTask(t: TaskInfo) {
+    if (!window.confirm("حذف هذه المهمة نهائيًا من قاعدة البيانات؟ لا يمكن التراجع.")) return;
+    setRowBusy(t.id);
+    try {
+      await fetch(`/api/tasks/${t.id}`, { method: "DELETE" });
+      await load();
+    } finally {
+      setRowBusy(null);
+    }
+  }
+
   return (
     <Card className="border-white/10 shadow-xl shadow-black/25 backdrop-blur" dir="rtl">
       <CardHeader>
@@ -85,11 +118,12 @@ export default function TasksCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {/* شرائح الإحصائيات */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
           <StatChip label="الإجمالي" value={stats.total} cls="bg-white/5 border-white/10 text-slate-200" />
           <StatChip label="مكتملة" value={stats.completed} cls="bg-emerald-500/10 border-emerald-400/25 text-emerald-300" />
           <StatChip label="فاشلة" value={stats.failed} cls="bg-red-500/10 border-red-400/25 text-red-300" />
           <StatChip label="جارية" value={stats.processing} cls="bg-amber-500/10 border-amber-400/25 text-amber-300" />
+          <StatChip label="ملغاة" value={stats.cancelled} cls="bg-slate-500/15 border-slate-400/25 text-slate-300" />
         </div>
 
         {/* القائمة */}
@@ -127,6 +161,9 @@ export default function TasksCard() {
                 {t.status === "failed" && t.error_message && (
                   <p className="text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded px-2 py-1 break-words" dir="auto">{t.error_message}</p>
                 )}
+                {t.status === "cancelled" && (
+                  <p className="text-xs text-slate-400 bg-slate-500/10 border border-slate-400/20 rounded px-2 py-1">🚫 مُلغاة يدويًا — توقفت نهائيًا ولن تُستأنف حتى مع get_task.</p>
+                )}
                 {t.status === "processing" && t.error_message === "بانتظار توفر مفتاح صالح…" && (
                   <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-400/20 rounded px-2 py-1">بانتظار توفر مفتاح صالح — ستُستأنف تلقائيًا مع استعلام get_task التالي.</p>
                 )}
@@ -147,6 +184,32 @@ export default function TasksCard() {
                     ))}
                   </div>
                 )}
+
+                {/* أزرار الإلغاء والحذف */}
+                <div className="flex items-center gap-2 pt-0.5">
+                  {(t.status === "processing" || t.status === "pending") && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => cancelTask(t)}
+                      disabled={rowBusy === t.id}
+                      className="min-h-9 border-amber-400/30 text-amber-300 hover:bg-amber-500/15 hover:text-amber-200"
+                    >
+                      {rowBusy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
+                      إلغاء
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => deleteTask(t)}
+                    disabled={rowBusy === t.id}
+                    className="min-h-9 border-red-400/30 text-red-300 hover:bg-red-500/15 hover:text-red-200"
+                  >
+                    {rowBusy === t.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                    حذف
+                  </Button>
+                </div>
               </div>
             ))
           )}

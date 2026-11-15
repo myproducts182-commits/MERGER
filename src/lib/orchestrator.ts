@@ -174,7 +174,13 @@ async function pollGenerationTask(taskId: string, modelDef: ModelDef, state: Pol
   | { kind: "processing"; progress?: number; patch: TaskPatch }
   | { kind: "switched"; patch: TaskPatch }
   | { kind: "waiting-for-key" }
+  | { kind: "cancelled" }
 > {
+  // إلغاء يدوي من لوحة الإدارة أثناء الحلقة؟ → توقف فوري لا يكتب فوق الإلغاء
+  const cur = await getTask(taskId);
+  if (cur?.status === "cancelled") {
+    return { kind: "cancelled" };
+  }
   const adapter = adapterForKey(state.key);
   try {
     const st = await adapter.checkTask(state.key.api_key, state.providerTaskId, { baseUrl: state.key.base_url ?? undefined });
@@ -384,6 +390,9 @@ export async function runGeneration(opts: {
     if (res.kind === "waiting-for-key") {
       return okResult(processingResultText(taskId));
     }
+    if (res.kind === "cancelled") {
+      return failResult(`🚫 المهمة ${taskId} مُلغاة يدويًا من لوحة الإدارة — توقفت نهائيًا ولن تُستأنف. أوقف المتابعة.`);
+    }
   }
 
   // 7) انتهت النافذة والنتيجة لم تظهر → أعد المهمة بحالتها الحالية والعميل يتابع بـ get_task
@@ -407,6 +416,10 @@ export async function refreshTask(taskId: string): Promise<ToolResult> {
   }
   if (task.status === "failed") {
     return failResult(`❌ فشلت المهمة: ${task.error_message || "سبب غير معروف"}`);
+  }
+  if (task.status === "cancelled") {
+    // حالة نهائية يدوية — رسالة إيقاف صريحة حتى يوقف العميل المتابعة فورًا
+    return failResult(`🚫 المهمة ${task.id} مُلغاة يدويًا من لوحة الإدارة — توقفت نهائيًا ولن تُستأنف. أوقف المتابعة ولا تعد المحاولة لهذا المعرّف.`);
   }
 
   // مهمة دمج → مسار خاص

@@ -6,7 +6,8 @@ export type ProviderId = string;
 export type ApiStyle = "kie" | "openai";
 export type TaskProvider = ProviderId | "merger";
 export type MediaType = "image" | "video" | "merge";
-export type TaskStatus = "pending" | "processing" | "completed" | "failed";
+/** حالة المهمة — cancelled إلغاء يدوي نهائي من لوحة الإدارة (لا يُستأنف) */
+export type TaskStatus = "pending" | "processing" | "completed" | "failed" | "cancelled";
 export type KeyStatus = "active" | "exhausted" | "disabled";
 
 /** فئة خطأ المزود — تحدد سلوك التبديل (انظر classifyProviderError) */
