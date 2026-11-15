@@ -53,7 +53,7 @@ bun run dev        # http://localhost:3000
 | `TURSO_DATABASE_URL` | ✅ | رابط قاعدة Turso مثل `libsql://<db>-<org>.turso.io` |
 | `TURSO_AUTH_TOKEN` | ✅ | توكن Turso بصلاحيات كتابة |
 | `MERGER_API_BASE` | للدمج | رابط خدمة الدمج Video Merger API v2 (بلا مفتاح) |
-| `MCP_ACCESS_TOKEN` | اختياري | إن ضُبط يُطلب `Authorization: Bearer <token>` على `/mcp` |
+| `MCP_ACCESS_TOKEN` | اختياري | إن ضُبط يُطلب مفتاح الوصول على `/mcp` بأي شكل: `Authorization: Bearer <token>` أو ترويسة `x-api-key`/`x-mcp-token` أو `?key=<token>` في الرابط |
 | `MCP_MAX_WAIT_SECONDS` | اختياري | سقف نافذة الانتظار داخل الاستدعاء الواحد (الافتراضي 50) |
 | `DEFAULT_IMAGE_MODEL` / `DEFAULT_VIDEO_MODEL` | اختياري | الموديل الافتراضي لكل نوع عند إغفال معامل `model` |
 | `KIE_IMAGE_MODEL` / `KIE_VIDEO_MODEL` / `COMETAPI_IMAGE_MODEL` / `COMETAPI_VIDEO_MODEL` | اختياري | تجاوز أسماء الموديلات المدمجة لدى كل مزود |
@@ -93,6 +93,8 @@ turso db tokens create <name>
 ```json
 { "mcpServers": { "media-generator": { "url": "<MCP_URL>" } } }
 ```
+
+> ⚠️ **مصادقة ChatGPT**: الموصلات المخصصة في ChatGPT لا تدعم ترويسات مخصصة — إن ضُبط `MCP_ACCESS_TOKEN` ضع المفتاح داخل الرابط نفسه: `"url": "<MCP_URL>?key=<MCP_ACCESS_TOKEN>"` واختر No authentication، أو احذف المتغير من Vercel وأعد النشر لتعطيل الحماية كليًا.
 
 **Claude Desktop** (`claude_desktop_config.json`):
 
@@ -136,7 +138,7 @@ turso db tokens create <name>
 
 - `.env*` مستثنى في `.gitignore` منذ اليوم الأول — لا أسرار في Git إطلاقًا، ولا تُطبع مفاتيح كاملة في الردود أو السجلات.
 - كل الاستجابات تُخفي المفاتيح (`ABCD123••••••••WXYZ`).
-- إذا ضُبط `MCP_ACCESS_TOKEN` فكل نداءات `/mcp` تتطلب الترويسة، وتظهر حالة الحماية في `/api/health` وفي الواجهة.
+- إذا ضُبط `MCP_ACCESS_TOKEN` فكل نداءات `/mcp` تتطلب المفتاح (Bearer أو `x-api-key` أو `?key=` في الرابط)، وتظهر حالة الحماية في `/api/health` وفي الواجهة.
 
 ---
 

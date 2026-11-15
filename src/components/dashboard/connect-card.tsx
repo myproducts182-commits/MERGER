@@ -60,11 +60,13 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
   );
 
   const mcpUrl = `${origin}/mcp`;
+  /** ChatGPT لا يدعم ترويسات مخصصة في موصلاته — المفتاح يوضع في الرابط نفسه ?key=… */
+  const chatgptMcpUrl = health?.authRequired ? `${mcpUrl}?key=<MCP_ACCESS_TOKEN>` : mcpUrl;
   const authHeaders = health?.authRequired ? { Authorization: `Bearer <MCP_ACCESS_TOKEN>` } : undefined;
 
   // JSON جاهز لكل عميل — يتضمن Authorization فقط عند ضبط MCP_ACCESS_TOKEN (المترجم يخزّن الحسابات تلقائيًا)
   const serverEntry = { url: mcpUrl, ...(authHeaders ? { headers: authHeaders } : {}) };
-  const chatgptJson = JSON.stringify({ mcpServers: { "media-generator": serverEntry } }, null, 2);
+  const chatgptJson = JSON.stringify({ mcpServers: { "media-generator": { url: chatgptMcpUrl } } }, null, 2);
   const claudeJson = JSON.stringify({ mcpServers: { "media-generator": { type: "http", ...serverEntry } } }, null, 2);
   const cursorJson = claudeJson;
 
@@ -93,10 +95,17 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
             <JsonBlock value={chatgptJson} />
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <p className="text-xs text-slate-400" dir="auto">
-                في ChatGPT: Settings → Connectors → Create → Custom MCP server وضع الرابط في «Server URL».
+                في ChatGPT: Settings → Connectors → Create → Custom MCP server وضع الرابط في «Server URL» واختر Authentication: No authentication.
               </p>
               <CopyButton text={chatgptJson} />
             </div>
+            {health?.authRequired && (
+              <p className="text-xs bg-cyan-500/10 text-cyan-200 border border-cyan-400/30 rounded px-3 py-2 leading-relaxed">
+                مهم لـ ChatGPT: موصلاته المخصصة لا تدعم ترويسات مصادقة مخصصة — لذلك يوضع المفتاح داخل الرابط نفسه
+                (<span dir="ltr" className="font-mono">/mcp?key=…</span>) كما في JSON أعلاه. البديل: احذف متغير
+                <span dir="ltr" className="font-mono"> MCP_ACCESS_TOKEN</span> من Vercel (Settings → Environment Variables ثم Redeploy) واختر No authentication بلا مفتاح.
+              </p>
+            )}
           </TabsContent>
 
           <TabsContent value="claude" className="space-y-2 pt-3">
@@ -121,8 +130,13 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
         </Tabs>
 
         {health?.authRequired && (
-          <p className="text-xs bg-amber-500/10 text-amber-200 border border-amber-400/30 rounded px-3 py-2">
-            الحماية مفعلة بـ MCP_ACCESS_TOKEN — استبدل <span dir="ltr" className="font-mono">&lt;MCP_ACCESS_TOKEN&gt;</span> في JSON أعلاه بالقيمة الفعلية.
+          <p className="text-xs bg-amber-500/10 text-amber-200 border border-amber-400/30 rounded px-3 py-2 leading-relaxed">
+            الحماية مفعلة بـ MCP_ACCESS_TOKEN — المفتاح يُقبل بأي شكل: ترويسة
+            <span dir="ltr" className="font-mono"> Authorization: Bearer</span> أو
+            <span dir="ltr" className="font-mono"> x-api-key</span>، أو داخل الرابط
+            (<span dir="ltr" className="font-mono">/mcp?key=…</span>). استبدل
+            <span dir="ltr" className="font-mono">&lt;MCP_ACCESS_TOKEN&gt;</span> في JSON أعلاه بالقيمة الفعلية —
+            وعميلات Claude/Cursor تُرسل الترويسة تلقائيًا.
           </p>
         )}
 

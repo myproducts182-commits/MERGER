@@ -4,7 +4,8 @@
  * - وضع الحالة (sessions) بخريطة عامة تظل حية ما دامت العملية دافئة؛ وعند بداية باردة على Vercel
  *   (جلسة غير معروفة) نخدم الطلب الواحد بوضع stateless حتى لا يتوقف أي عميل أبدًا.
  * - إجابات POST بتدفق SSE (الافتراضي) ليصل بث التقدم حيًا أثناء توليد الوسائط.
- * - إذا ضُبط MCP_ACCESS_TOKEN يُطلب Authorization: Bearer <token>.
+ * - إذا ضُبط MCP_ACCESS_TOKEN يُطلب المفتاح بأحد الأشكال: Authorization: Bearer / x-api-key /
+ *   x-mcp-token أو ?key=<token> في الرابط (لدعم ChatGPT الذي لا يرسل ترويسات مخصصة).
  */
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
@@ -85,15 +86,40 @@ function finalizeStateless(pair: SessionPair, response: Response): Response {
 
 function unauthorized(): NextResponse {
   return NextResponse.json(
-    { jsonrpc: "2.0", error: { code: -32001, message: "Unauthorized: مطلوب ترويسة Authorization: Bearer <MCP_ACCESS_TOKEN>" }, id: null },
+    {
+      jsonrpc: "2.0",
+      error: {
+        code: -32001,
+        message: "Unauthorized: مطلوب مفتاح الوصول بأحد هذه الأشكال — Authorization: Bearer <MCP_ACCESS_TOKEN> أو ترويسة x-api-key أو x-mcp-token أو ?key=<MCP_ACCESS_TOKEN> في الرابط",
+      },
+      id: null,
+    },
     { status: 401, headers: { "Content-Type": "application/json" } },
   );
 }
 
+/**
+ * استخراج مفتاح الوصول من أي صيغة يدعمها العملاء:
+ * - Authorization: Bearer <token> (Claude / Cursor / Codex)
+ * - ترويسة x-api-key أو x-mcp-token
+ * - ?key=<token> أو ?token=<token> في الرابط نفسه — الحل الوحيد لـ ChatGPT
+ *   (موصلاته المخصصة لا تدعم ترويسات مخصصة، والرابط يُرسل كما هو)
+ */
+function extractAccessToken(request: NextRequest): string {
+  const auth = (request.headers.get("authorization") || "").trim();
+  if (auth.toLowerCase().startsWith("bearer ")) return auth.slice(7).trim();
+  for (const h of ["x-api-key", "x-mcp-token"]) {
+    const v = (request.headers.get(h) || "").trim();
+    if (v) return v;
+  }
+  const q = request.nextUrl.searchParams;
+  return (q.get("key") || q.get("token") || "").trim();
+}
+
 function checkAuth(request: NextRequest): boolean {
   if (!isMcpAuthRequired()) return true;
-  const auth = request.headers.get("authorization") || "";
-  return auth === `Bearer ${mcpAccessToken()}`;
+  const provided = extractAccessToken(request);
+  return provided.length > 0 && provided === mcpAccessToken();
 }
 
 async function handle(request: NextRequest): Promise<Response> {
