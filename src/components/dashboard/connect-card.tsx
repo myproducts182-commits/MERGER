@@ -58,10 +58,17 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
     () => window.location.origin,
     () => "",
   );
+  /** مفتاح يلصقه المستخدم محليًا لبناء الرابط الجاهز — لا يُرسل للخادم إطلاقًا */
+  const [pastedToken, setPastedToken] = useState("");
+  const cleanToken = pastedToken.trim();
 
   const mcpUrl = `${origin}/mcp`;
   /** ChatGPT لا يدعم ترويسات مخصصة في موصلاته — المفتاح يوضع في الرابط نفسه ?key=… */
-  const chatgptMcpUrl = health?.authRequired ? `${mcpUrl}?key=<MCP_ACCESS_TOKEN>` : mcpUrl;
+  const chatgptMcpUrl = cleanToken
+    ? `${mcpUrl}?key=${encodeURIComponent(cleanToken)}`
+    : health?.authRequired
+      ? `${mcpUrl}?key=<MCP_ACCESS_TOKEN>`
+      : mcpUrl;
   const authHeaders = health?.authRequired ? { Authorization: `Bearer <MCP_ACCESS_TOKEN>` } : undefined;
 
   // JSON جاهز لكل عميل — يتضمن Authorization فقط عند ضبط MCP_ACCESS_TOKEN (المترجم يخزّن الحسابات تلقائيًا)
@@ -99,11 +106,37 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
               </p>
               <CopyButton text={chatgptJson} />
             </div>
-            {health?.authRequired && (
-              <p className="text-xs bg-cyan-500/10 text-cyan-200 border border-cyan-400/30 rounded px-3 py-2 leading-relaxed">
-                مهم لـ ChatGPT: موصلاته المخصصة لا تدعم ترويسات مصادقة مخصصة — لذلك يوضع المفتاح داخل الرابط نفسه
-                (<span dir="ltr" className="font-mono">/mcp?key=…</span>) كما في JSON أعلاه. البديل: احذف متغير
-                <span dir="ltr" className="font-mono"> MCP_ACCESS_TOKEN</span> من Vercel (Settings → Environment Variables ثم Redeploy) واختر No authentication بلا مفتاح.
+            {health?.authRequired ? (
+              <div className="space-y-2 rounded-lg border border-cyan-400/25 bg-cyan-500/5 p-3">
+                <p className="text-xs text-cyan-200 leading-relaxed">
+                  مهم لـ ChatGPT: موصلاته المخصصة لا تعرض حقلًا لمفتاح API — لذلك يوضع المفتاح داخل الرابط نفسه.
+                  الصق <span dir="ltr" className="font-mono">MCP_ACCESS_TOKEN</span> هنا وسيُبنى الرابط الجاهز تلقائيًا
+                  (يُستخدم في متصفحك فقط ولا يُرسل للخادم):
+                </p>
+                <Input
+                  value={pastedToken}
+                  onChange={(e) => setPastedToken(e.target.value)}
+                  placeholder="الصق قيمة MCP_ACCESS_TOKEN هنا"
+                  dir="ltr"
+                  type="password"
+                  autoComplete="off"
+                  className="font-mono text-sm bg-black/30 border-white/10"
+                  aria-label="قيمة MCP_ACCESS_TOKEN"
+                />
+                {cleanToken && (
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+                    <Input readOnly value={chatgptMcpUrl} dir="ltr" className="font-mono text-xs bg-black/40 border-cyan-400/30" aria-label="رابط ChatGPT الجاهز" />
+                    <CopyButton text={chatgptMcpUrl} label="نسخ الرابط الجاهز" />
+                  </div>
+                )}
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  البديل: احذف متغير <span dir="ltr" className="font-mono">MCP_ACCESS_TOKEN</span> من Vercel
+                  (Settings → Environment Variables ثم Redeploy) وستعمل بلا أي مفتاح.
+                </p>
+              </div>
+            ) : (
+              <p className="text-xs bg-emerald-500/10 text-emerald-200 border border-emerald-400/30 rounded px-3 py-2 leading-relaxed">
+                الحماية غير مفعلة — لا تحتاج أي مفتاح إطلاقًا: الصق الرابط أعلاه كما هو في ChatGPT واختر Authentication: No authentication.
               </p>
             )}
           </TabsContent>

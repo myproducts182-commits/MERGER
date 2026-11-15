@@ -66,6 +66,22 @@ export default function Dashboard() {
           </div>
         </header>
 
+        {/* لافتة إعداد قاعدة البيانات — تظهر فقط عند انقطاع الاتصال */}
+        {health && !dbConnected && (
+          <div className="mb-7 rounded-xl border border-red-400/30 bg-red-500/10 p-4 space-y-2">
+            <p className="font-semibold text-red-200">⚠️ قاعدة البيانات غير مربوطة — لهذا يفشل حفظ المفاتيح والمهام</p>
+            <p className="text-sm text-red-100/85 leading-relaxed">
+              السيرفر لا يجد متغيرَي البيئة <span dir="ltr" className="font-mono">TURSO_DATABASE_URL</span> و
+              <span dir="ltr" className="font-mono">TURSO_AUTH_TOKEN</span> — الإصلاح يستغرق دقيقة:
+            </p>
+            <ol className="text-sm text-red-100/85 list-decimal ps-5 space-y-1 leading-relaxed">
+              <li>أنشئ قاعدة مجانية على <span dir="ltr">turso.tech</span> (أو افتح قاعدتك السابقة) وانسخ «Database URL» و«Auth Token».</li>
+              <li>في Vercel: مشروعك → Settings → Environment Variables → أضف المتغيرين بالاسم والقيمة نفسها لبيئة Production.</li>
+              <li>ثم Settings → Deployments → Redeploy، وحدّث هذه الصفحة — ستختفي هذه اللافتة وتعود مفاتيحك ومهامك المحفوظة.</li>
+            </ol>
+          </div>
+        )}
+
         {/* الموديلات المدمجة */}
         {models.length > 0 && (
           <div className="mb-7 flex flex-wrap items-center gap-2 text-xs">

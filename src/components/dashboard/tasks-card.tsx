@@ -51,6 +51,7 @@ export default function TasksCard() {
   const [stats, setStats] = useState({ total: 0, completed: 0, failed: 0, processing: 0, cancelled: 0 });
   const [tasks, setTasks] = useState<TaskInfo[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -59,8 +60,9 @@ export default function TasksCard() {
       const data = await res.json();
       if (data.stats) setStats(data.stats);
       if (data.tasks) setTasks(data.tasks);
+      setLoadError(data.tasks ? null : data.error || `خطأ ${res.status} عند تحميل المهام`);
     } catch {
-      // تجاهل أخطاء التحديث الدوري
+      setLoadError("تعذر الاتصال بالسيرفر");
     } finally {
       setLoading(false);
     }
@@ -127,6 +129,11 @@ export default function TasksCard() {
         </div>
 
         {/* القائمة */}
+        {loadError && (
+          <p className="text-sm text-red-300 bg-red-500/10 border border-red-400/30 rounded-md px-3 py-2" dir="auto">
+            تعذر تحميل المهام: {loadError} — راجع لافتة إعداد قاعدة البيانات أعلى الصفحة.
+          </p>
+        )}
         <div className="max-h-[26rem] overflow-y-auto space-y-2 pe-1">
           {loading ? (
             <p className="text-sm text-slate-400 py-6 text-center">جارٍ التحميل…</p>

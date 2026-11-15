@@ -42,6 +42,7 @@ export default function KeysCard() {
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const isCustom = !KNOWN_PROVIDERS.includes(provider.trim().toLowerCase());
 
@@ -50,8 +51,9 @@ export default function KeysCard() {
       const res = await fetch("/api/keys", { cache: "no-store" });
       const data = await res.json();
       if (data.keys) setKeys(data.keys);
+      setLoadError(data.keys ? null : data.error || `خطأ ${res.status} عند تحميل المفاتيح`);
     } catch {
-      // تجاهل أخطاء التحديث الدوري
+      setLoadError("تعذر الاتصال بالسيرفر");
     } finally {
       setLoading(false);
     }
@@ -205,6 +207,12 @@ export default function KeysCard() {
         {message && (
           <p className={`text-sm rounded-md px-3 py-2 border ${message.kind === "error" ? "bg-red-500/10 text-red-300 border-red-400/30" : "bg-emerald-500/10 text-emerald-300 border-emerald-400/30"}`} dir="auto">
             {message.text}
+          </p>
+        )}
+
+        {loadError && (
+          <p className="text-sm text-red-300 bg-red-500/10 border border-red-400/30 rounded-md px-3 py-2" dir="auto">
+            تعذر تحميل المفاتيح: {loadError} — راجع لافتة إعداد قاعدة البيانات أعلى الصفحة.
           </p>
         )}
 
