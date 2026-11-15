@@ -66,8 +66,17 @@ export default function KeysCard() {
   }, [load]);
 
   async function addKey() {
-    setBusy(true);
     setMessage(null);
+    // الزر لا يُعطَّل أبدًا — نتحقق عند النقر ونعرض سبب الرفض بوضوح حتى لا يبدو الزر «ميتًا»
+    if (!apiKey.trim()) {
+      setMessage({ kind: "error", text: "ألصق مفتاح API في حقل «المفتاح» أولًا، ثم اضغط إضافة." });
+      return;
+    }
+    if (!provider.trim()) {
+      setMessage({ kind: "error", text: "أدخل اسم المزود (مثال: kie أو cometapi أو أي اسم مخصص)." });
+      return;
+    }
+    setBusy(true);
     try {
       const res = await fetch("/api/keys", {
         method: "POST",
@@ -82,7 +91,7 @@ export default function KeysCard() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setMessage({ kind: "error", text: data.error || "فشلت الإضافة" });
+        setMessage({ kind: "error", text: data.error || `فشلت الإضافة (رمز ${res.status})` });
       } else {
         setMessage({ kind: "ok", text: `تمت إضافة المفتاح ${data.masked ?? ""} بنجاح — سيُجرَّب أولًا حسب ترتيب الإضافة.` });
         setApiKey("");
@@ -91,7 +100,7 @@ export default function KeysCard() {
         await load();
       }
     } catch {
-      setMessage({ kind: "error", text: "تعذر الاتصال بالسيرفر" });
+      setMessage({ kind: "error", text: "تعذر الاتصال بالسيرفر — تحقق من حالة النشر في Vercel ثم حدّث الصفحة." });
     } finally {
       setBusy(false);
     }
@@ -168,7 +177,7 @@ export default function KeysCard() {
               dir="ltr"
             />
           </div>
-          <Button onClick={addKey} disabled={busy || !apiKey.trim() || !provider.trim()} className="min-h-11 bg-gradient-to-l from-violet-500 to-fuchsia-500 text-white hover:from-violet-400 hover:to-fuchsia-400">
+          <Button onClick={addKey} disabled={busy} className="min-h-11 bg-gradient-to-l from-violet-500 to-fuchsia-500 text-white hover:from-violet-400 hover:to-fuchsia-400">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             إضافة
           </Button>
