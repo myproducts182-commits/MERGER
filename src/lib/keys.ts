@@ -8,7 +8,7 @@
  */
 import { randomUUID } from "node:crypto";
 import { query } from "./turso";
-import { ProviderError, type ErrorClass, type KeyRecord, type ProviderId } from "./types";
+import { ProviderError, type ApiStyle, type ErrorClass, type KeyRecord } from "./types";
 
 /** إخفاء المفتاح: أول 7 أحرف + •••••••• + آخر 4 (أو أول 3 + •••• للقصير) */
 export function maskKey(key: string): string {
@@ -21,9 +21,11 @@ export function maskKey(key: string): string {
 function rowToKey(r: Record<string, unknown>): KeyRecord {
   return {
     id: String(r.id),
-    provider: r.provider as ProviderId,
+    provider: String(r.provider),
     label: String(r.label ?? ""),
     api_key: String(r.api_key),
+    base_url: (r.base_url as string) || null,
+    api_style: (r.api_style === "openai" || r.api_style === "kie" ? r.api_style : null) as ApiStyle | null,
     status: (r.status as KeyRecord["status"]) ?? "active",
     usage_count: Number(r.usage_count ?? 0),
     success_count: Number(r.success_count ?? 0),
@@ -38,9 +40,16 @@ function rowToKey(r: Record<string, unknown>): KeyRecord {
 /**
  * تجلب كل المفاتيح غير المعطّلة لهذه المزودات بالترتيب التسلسلي الصارم.
  * المفتاح المستنزف يبقى مرشحًا (تجربة المفتاح المستنزف رخيصة: 402 فورية) — فقط disabled يُستبعد.
+ * providers تحوي "*" → تُعاد كل المفاتيح النشطة أيًا كان مزودها (موديل مخصص يُمرَّر لكل المزودين).
  */
-export async function getKeyPool(providers: ProviderId[]): Promise<KeyRecord[]> {
+export async function getKeyPool(providers: string[]): Promise<KeyRecord[]> {
   if (providers.length === 0) return [];
+  if (providers.includes("*")) {
+    const rs = await query(
+      `SELECT * FROM api_keys WHERE status != 'disabled' ORDER BY created_at ASC, id ASC`,
+    );
+    return rs.rows.map((r) => rowToKey(r as unknown as Record<string, unknown>));
+  }
   const placeholders = providers.map(() => "?").join(",");
   const rs = await query(
     `SELECT * FROM api_keys
@@ -66,7 +75,19 @@ export async function listKeys(): Promise<Omit<KeyRecord, "api_key">[]> {
   });
 }
 
-export async function addKey(provider: ProviderId, apiKey: string, label: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
+export interface AddKeyOptions {
+  /** رابط API مخصص — إلزامي للمزودات خارج kie/cometapi */
+  baseUrl?: string | null;
+  /** نمط التوافق للمزود المخصص — الافتراضي kie */
+  apiStyle?: ApiStyle | null;
+}
+
+export async function addKey(
+  provider: string,
+  apiKey: string,
+  label: string,
+  opts: AddKeyOptions = {},
+): Promise<{ ok: true; id: string } | { ok: false; error: string }> {
   // رفض التكرار لنفس المزود
   const dup = await query("SELECT id FROM api_keys WHERE provider = ? AND api_key = ? LIMIT 1", [provider, apiKey]);
   if (dup.rows.length > 0) {
@@ -74,8 +95,8 @@ export async function addKey(provider: ProviderId, apiKey: string, label: string
   }
   const id = randomUUID();
   await query(
-    `INSERT INTO api_keys (id, provider, label, api_key) VALUES (?, ?, ?, ?)`,
-    [id, provider, label, apiKey],
+    `INSERT INTO api_keys (id, provider, label, api_key, base_url, api_style) VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, provider, label, apiKey, opts.baseUrl ?? null, opts.apiStyle ?? null],
   );
   return { ok: true, id };
 }

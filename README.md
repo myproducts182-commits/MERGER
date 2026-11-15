@@ -2,19 +2,21 @@
 
 خادم **MCP (Model Context Protocol)** لتوليد الوسائط بالذكاء الاصطناعي — يجمع ثلاث قدرات في أداة واحدة:
 
-1. **توليد صور** من وصف نصي — الموديل المدمج: `gpt-image-2-6/flare-text-to-image`
-2. **توليد فيديو** مع صوت متزامن أصلي (حوار/مؤثرات/موسيقى) — الموديل المدمج: `grok-imagine-video-1-5-preview`
+1. **توليد صور** من وصف نصي — بأي موديل يدعمه مزودك (الافتراضي: `gpt-image-2-6/flare-text-to-image`)
+2. **توليد فيديو** مع صوت متزامن أصلي (حوار/مؤثرات/موسيقى) — بأي موديل مدعوم (الافتراضي: `grok-imagine-video-1-5-preview`)
 3. **دمج عدة مقاطع فيديو** في مقطع واحد عالي الجودة وبالترتيب المطلوب — عبر خدمة Video Merger API v2
 
 التطبيق Next.js واحد فيه جزءان:
 
 - **خادم MCP** على المسار `/mcp` (نقل Streamable HTTP عبر SDK الرسمي) يعرض **5 أدوات** لأي عميل: ChatGPT Connectors / Claude Desktop / Cursor / Windsurf / Cline / GPT Agents SDK.
-- **واجهة ويب عربية RTL** لإدارة مفاتيح API، متابعة المهام حية، وعرض إعدادات الربط جاهزة للنسخ.
+- **واجهة ويب عربية RTL** بثيم داكن متدرج («أورورا») لإدارة مفاتيح أي مزود، متابعة المهام حية، وعرض إعدادات الربط جاهزة للنسخ.
 
 ---
 
 ## ✨ المزايا الجوهرية
 
+- **أي موديل**: كل نداء `generate_image` / `generate_video` يقبل معامل `model` اختياريًا بأي اسم يدعمه مزودك (`seedream-4.0`، `nano-banana`، `flux-1.1-pro`، `sora-2`، `veo3`، `kling-v2-master`…) — يُمرَّر كما هو للمزود، وعند غيابه يُستخدم الافتراضي القابل للتجاوز بمتغيرات البيئة.
+- **أي مزود خدمة**: المزودان المعروفان `kie` و `cometapi` بمحولات مدمجة، وأي مزود آخر يُضاف باسمه الحر + **رابط API مخصص (https)** + نمط التوافق («توافق kie.ai — Jobs API» أو «توافق OpenAI — Images/Videos»)، ومع موديل مخصص تُجرَّب كل المفاتيح النشطة أيًا كان مزودها.
 - **لا يُنزَّل أي ملف وسائط على السيرفر إطلاقًا** — تُخزَّن روابط النتائج فقط في قاعدة البيانات.
 - **مفاتيح متعددة بترتيب تسلسلي صارم** حسب ترتيب الإضافة (أول مفتاح يُجرَّب أولًا) — ليس round-robin.
 - **تبديل تلقائي فوري عند أي خطأ أو نفاد رصيد دون توقف المهمة** — نفس المهمة تُستأنف بنفس `task_id` على المفتاح التالي، ونموذج الذكاء الاصطناعي **لا يرى أخطاء المفاتيح أو الرصيد أبدًا**.
@@ -28,10 +30,10 @@
 
 ## 🛠 التقنيات
 
-- Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + shadcn/ui
+- Next.js 16 (App Router) + TypeScript + Tailwind CSS 4 + shadcn/ui (ثيم «أورورا» داكن مخصص)
 - `@modelcontextprotocol/sdk` — `McpServer` + `WebStandardStreamableHTTPServerTransport` الرسميان
 - `@libsql/client` مع قاعدة **Turso** عبر HTTP (متوافق مع Vercel serverless — بلا ملفات محلية)
-- المزودون: **kie.ai** (Jobs API الموحد) + **CometAPI** + خدمة دمج مستقلة
+- المزودون: **kie.ai** (Jobs API الموحد) + **CometAPI** + **أي مزود مخصص** برابط API ونمط توافق + خدمة دمج مستقلة
 
 ---
 
@@ -52,7 +54,9 @@ bun run dev        # http://localhost:3000
 | `MERGER_API_BASE` | للدمج | رابط خدمة الدمج Video Merger API v2 (بلا مفتاح) |
 | `MCP_ACCESS_TOKEN` | اختياري | إن ضُبط يُطلب `Authorization: Bearer <token>` على `/mcp` |
 | `MCP_MAX_WAIT_SECONDS` | اختياري | سقف نافذة الانتظار داخل الاستدعاء الواحد (الافتراضي 50) |
-| `KIE_IMAGE_MODEL` / `KIE_VIDEO_MODEL` / `COMETAPI_IMAGE_MODEL` / `COMETAPI_VIDEO_MODEL` | اختياري | تجاوز أسماء الموديلات لدى كل مزود |
+| `DEFAULT_IMAGE_MODEL` / `DEFAULT_VIDEO_MODEL` | اختياري | الموديل الافتراضي لكل نوع عند إغفال معامل `model` |
+| `KIE_IMAGE_MODEL` / `KIE_VIDEO_MODEL` / `COMETAPI_IMAGE_MODEL` / `COMETAPI_VIDEO_MODEL` | اختياري | تجاوز أسماء الموديلات المدمجة لدى كل مزود |
+| `KIE_API_BASE` / `COMETAPI_API_BASE` | للتجارب | تجاوز الرابط الأساسي للمزودين المعروفين |
 
 إنشاء قاعدة Turso مجانية:
 
@@ -101,8 +105,8 @@ turso db tokens create <name>
 
 | الأداة | الوصف |
 |---|---|
-| `generate_image` | توليد صورة بـ `gpt-image-2-6/flare-text-to-image` مع تبديل تلقائي عبر كل المفاتيح النشطة |
-| `generate_video` | توليد فيديو بـ `grok-imagine-video-1-5-preview` (صوت متزامن، image-to-video اختياري) |
+| `generate_image` | توليد صورة بأي موديل صور يدعمه مزودك (معامل `model` اختياري — الافتراضي `gpt-image-2-6/flare-text-to-image`) مع تبديل تلقائي عبر كل المفاتيح |
+| `generate_video` | توليد فيديو بأي موديل فيديو مدعوم (معامل `model` اختياري — الافتراضي `grok-imagine-video-1-5-preview`، صوت متزامن، image-to-video اختياري) |
 | `merge_videos` | دمج 2–10 مقاطع بترتيب معين عبر `urls` مباشرة أو `task_ids` لمهام مكتملة |
 | `get_task` | تتبع أي مهمة (توليد أو دمج) بمعرّفها — تحديث حي من المزود/الخدمة |
 | `list_media` | أحدث الوسائط المخزنة بروابطها (استرجاع بلا إعادة توليد) |
@@ -116,7 +120,9 @@ turso db tokens create <name>
 جدولان يُنشآن تلقائيًا عند أول وصول (`ensureSchema` — بلا أداة migrations):
 
 - `tasks` — المهام: المزود، معرّف المزود، المفتاح المستخدم، الحالة، التقدم، روابط النتائج، وسجل المحاولات (`attempts_json`).
-- `api_keys` — المفاتيح: المزود، الحالة (`active | exhausted | disabled`)، عدّادات الاستخدام/النجاح/الفشل، آخر خطأ.
+- `api_keys` — المفاتيح: المزود (أي اسم حر)، رابط API مخصص (`base_url`) ونمط التوافق (`api_style`) للمزودات الخارجية، الحالة (`active | exhausted | disabled`)، عدّادات الاستخدام/النجاح/الفشل، آخر خطأ.
+
+> ترحيل الأعمدة الجديدة (`base_url`، `api_style`) يطبَّق تلقائيًا عند أول وصول (`ensureSchema`) — لا خطوة يدوية على قاعدة قائمة.
 
 أدوات مساعدة في `scripts/`:
 

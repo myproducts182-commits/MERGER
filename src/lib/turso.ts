@@ -57,13 +57,29 @@ const SCHEMA_SQL = [
   )`,
 ];
 
-/** تنشئ الجداول مرة واحدة لكل عملية (فشل مؤقت يعيد المحاولة لاحقًا) */
+/** ترحيلات تدريجية للجداول القائمة (آمنة للتكرار — تُتجاهل أخطاء «العمود موجود») */
+const MIGRATIONS_SQL = [
+  // دعم المزودات المخصصة: رابط API مخصص + نمط التوافق (kie/openai)
+  "ALTER TABLE api_keys ADD COLUMN base_url TEXT",
+  "ALTER TABLE api_keys ADD COLUMN api_style TEXT",
+];
+
+/** تنشئ الجداول وتطبق الترحيلات مرة واحدة لكل عملية (فشل مؤقت يعيد المحاولة لاحقًا) */
 export async function ensureSchema(): Promise<void> {
   if (!schemaPromise) {
     schemaPromise = (async () => {
       const c = getTurso();
       for (const sql of SCHEMA_SQL) {
         await c.execute(sql);
+      }
+      for (const sql of MIGRATIONS_SQL) {
+        try {
+          await c.execute(sql);
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : String(e);
+          // العمود موجود مسبقًا = الترحيل طُبق في تشغيل سابق — تجاهل بأمان
+          if (!/duplicate column|already exists/i.test(msg)) throw e;
+        }
       }
     })().catch((err) => {
       schemaPromise = null; // اسمح بإعادة المحاولة في الطلب القادم

@@ -12,6 +12,10 @@ export interface KeyInfo {
   id: string;
   provider: string;
   label: string;
+  /** رابط API مخصص للمزودات الخارجية — null للمزودات المعروفة */
+  base_url: string | null;
+  /** نمط التوافق للمزود المخصص */
+  api_style: "kie" | "openai" | null;
   status: "active" | "exhausted" | "disabled";
   usage_count: number;
   success_count: number;

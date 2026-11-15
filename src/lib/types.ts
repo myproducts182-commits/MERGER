@@ -1,6 +1,9 @@
 /** الأنواع المشتركة للمشروع */
 
-export type ProviderId = "kie" | "cometapi";
+/** معرف المزود — نص حر: المزودات المعروفة (kie/cometapi) وأي مزود مخصص يُدار برابط API ونمط متوافق */
+export type ProviderId = string;
+/** نمط الـ API للمزود المخصص: توافق kie.ai (Jobs API) أو توافق OpenAI (Images/Videos) */
+export type ApiStyle = "kie" | "openai";
 export type TaskProvider = ProviderId | "merger";
 export type MediaType = "image" | "video" | "merge";
 export type TaskStatus = "pending" | "processing" | "completed" | "failed";
@@ -22,11 +25,16 @@ export class ProviderError extends Error {
 /** محول مزود — واجهة موحدة لكل المزودين */
 export interface ProviderAdapter {
   /** مهمة غير متزامنة (فيديو وبعض الصور): تعيد معرّف المهمة لدى المزود */
-  createTask(key: string, providerModel: string, input: Record<string, unknown>): Promise<{ providerTaskId: string }>;
+  createTask(key: string, providerModel: string, input: Record<string, unknown>, opts?: AdapterCallOpts): Promise<{ providerTaskId: string }>;
   /** صور متزامنة إن كان المزود يدعمها (تعيد الروابط فورًا) */
-  createImageSync?(key: string, providerModel: string, input: Record<string, unknown>): Promise<{ urls: string[] }>;
+  createImageSync?(key: string, providerModel: string, input: Record<string, unknown>, opts?: AdapterCallOpts): Promise<{ urls: string[] }>;
   /** استعلام حالة مهمة جارية */
-  checkTask(key: string, providerTaskId: string): Promise<CheckResult>;
+  checkTask(key: string, providerTaskId: string, opts?: AdapterCallOpts): Promise<CheckResult>;
+}
+
+/** خيارات النداء الواحد: تجاوز رابط API الأساسي (للمزودات المخصصة المخزنة مع المفتاح) */
+export interface AdapterCallOpts {
+  baseUrl?: string;
 }
 
 export interface CheckResult {
@@ -74,6 +82,10 @@ export interface KeyRecord {
   provider: ProviderId;
   label: string;
   api_key: string;
+  /** رابط API مخصص للمزودات الخارجية — null للمزودات المعروفة إن لم يُدخل */
+  base_url: string | null;
+  /** نمط الـ API للمزود المخصص — null للمزودات المعروفة */
+  api_style: ApiStyle | null;
   status: KeyStatus;
   usage_count: number;
   success_count: number;

@@ -5,14 +5,16 @@
  *              ثم GET /v1/videos/{id} حتى completed مع رابط/محتوى النتيجة.
  * ملاحظة: لا نعتمد b64_json (قاعدة: لا تنزيل وسائط على سيرفرنا) — غياب الرابط يعامل كفشل مؤقت ليُجرّب المزود/المفتاح التالي.
  */
-import { ProviderError, type CheckResult, type ProviderAdapter } from "../types";
+import { ProviderError, type AdapterCallOpts, type CheckResult, type ProviderAdapter } from "../types";
 
-const BASE = (process.env.COMETAPI_API_BASE || "https://api.cometapi.com").replace(/\/+$/, "");
+const BASE = ((process.env.COMETAPI_API_BASE || "https://api.cometapi.com").trim()).replace(/\/+$/, "");
 
-async function cometFetch(path: string, key: string, init?: RequestInit & { timeoutMs?: number }): Promise<Record<string, unknown>> {
+/** نمط OpenAI-المتوافق — يعمل مع CometAPI وأي مزود مخصص اختار هذا النمط (رابط أساسي متجاوز عند الحاجة) */
+async function cometFetch(path: string, key: string, init?: RequestInit & { timeoutMs?: number }, baseUrlOverride?: string | null): Promise<Record<string, unknown>> {
+  const base = ((baseUrlOverride || BASE).trim()).replace(/\/+$/, "");
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${base}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${key}`,
@@ -48,7 +50,7 @@ async function cometFetch(path: string, key: string, init?: RequestInit & { time
 }
 
 export const cometApiAdapter: ProviderAdapter = {
-  async createImageSync(key, providerModel, input) {
+  async createImageSync(key, providerModel, input, opts?: AdapterCallOpts) {
     const body = await cometFetch("/v1/images/generations", key, {
       method: "POST",
       body: JSON.stringify({
@@ -57,7 +59,7 @@ export const cometApiAdapter: ProviderAdapter = {
         ...(input.aspect_ratio && input.aspect_ratio !== "auto" ? { aspect_ratio: input.aspect_ratio } : {}),
         ...(input.resolution ? { resolution: input.resolution } : {}),
       }),
-    });
+    }, opts?.baseUrl);
     const arr = Array.isArray(body.data) ? (body.data as Array<Record<string, unknown>>) : [];
     const urls = arr.map((d) => (typeof d.url === "string" ? d.url : null)).filter((u): u is string => !!u);
     if (urls.length === 0) {
@@ -67,7 +69,7 @@ export const cometApiAdapter: ProviderAdapter = {
     return { urls };
   },
 
-  async createTask(key, providerModel, input) {
+  async createTask(key, providerModel, input, opts?: AdapterCallOpts) {
     const body = await cometFetch("/v1/videos", key, {
       method: "POST",
       body: JSON.stringify({
@@ -77,14 +79,14 @@ export const cometApiAdapter: ProviderAdapter = {
         ...(input.duration ? { seconds: input.duration } : {}),
         ...(input.aspect_ratio && input.aspect_ratio !== "auto" ? { size: input.aspect_ratio } : {}),
       }),
-    });
+    }, opts?.baseUrl);
     const id = (typeof body.id === "string" && body.id) || (typeof body.task_id === "string" && body.task_id) || undefined;
     if (!id) throw new ProviderError(undefined, "استجابة إنشاء فيديو CometAPI بدون معرّف");
     return { providerTaskId: id };
   },
 
-  async checkTask(key, providerTaskId): Promise<CheckResult> {
-    const body = await cometFetch(`/v1/videos/${encodeURIComponent(providerTaskId)}`, key, { method: "GET" });
+  async checkTask(key, providerTaskId, opts?: AdapterCallOpts): Promise<CheckResult> {
+    const body = await cometFetch(`/v1/videos/${encodeURIComponent(providerTaskId)}`, key, { method: "GET" }, opts?.baseUrl);
     const status = String(body.status ?? "").toLowerCase();
 
     if (["completed", "complete", "success", "succeeded"].includes(status)) {
@@ -94,8 +96,9 @@ export const cometApiAdapter: ProviderAdapter = {
         if (typeof v === "string" && /^https?:\/\//i.test(v)) urls.push(v);
       }
       if (urls.length === 0 && typeof body.id === "string") {
-        // نمط Sora: المحتوى يُجلب من نقطة المحتوى المباشرة العامة
-        urls.push(`${BASE}/v1/videos/${body.id}/content`);
+        // نمط Sora: المحتوى يُجلب من نقطة المحتوى المباشرة العامة (بنفس الرابط الأساسي الفعّال)
+        const base = ((opts?.baseUrl || BASE).trim()).replace(/\/+$/, "");
+        urls.push(`${base}/v1/videos/${body.id}/content`);
       }
       return { status: "completed", urls };
     }

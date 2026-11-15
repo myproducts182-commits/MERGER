@@ -21,17 +21,17 @@ const STATUS_LABEL: Record<TaskInfo["status"], string> = {
 function typeBadge(t: TaskInfo["type"]) {
   const cls =
     t === "image"
-      ? "bg-violet-100 text-violet-800 border-violet-200"
+      ? "bg-violet-500/15 text-violet-300 border-violet-400/30"
       : t === "video"
-        ? "bg-teal-100 text-teal-800 border-teal-200"
-        : "bg-orange-100 text-orange-800 border-orange-200";
+        ? "bg-cyan-500/15 text-cyan-300 border-cyan-400/30"
+        : "bg-fuchsia-500/15 text-fuchsia-300 border-fuchsia-400/30";
   return <Badge variant="outline" className={cls}>{TYPE_LABEL[t]}</Badge>;
 }
 
 function statusBadge(t: TaskInfo) {
-  if (t.status === "completed") return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">✅ {STATUS_LABEL[t.status]}</Badge>;
-  if (t.status === "failed") return <Badge className="bg-red-100 text-red-700 border-red-200 hover:bg-red-100">❌ {STATUS_LABEL[t.status]}</Badge>;
-  return <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 animate-pulse">⏳ {STATUS_LABEL[t.status]}</Badge>;
+  if (t.status === "completed") return <Badge className="bg-emerald-500/15 text-emerald-300 border-emerald-400/30 hover:bg-emerald-500/25">✅ {STATUS_LABEL[t.status]}</Badge>;
+  if (t.status === "failed") return <Badge className="bg-red-500/15 text-red-300 border-red-400/30 hover:bg-red-500/25">❌ {STATUS_LABEL[t.status]}</Badge>;
+  return <Badge className="bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/25 animate-pulse">⏳ {STATUS_LABEL[t.status]}</Badge>;
 }
 
 function StatChip({ label, value, cls }: { label: string; value: number; cls: string }) {
@@ -68,15 +68,15 @@ export default function TasksCard() {
   }, [load]);
 
   return (
-    <Card className="border shadow-sm" dir="rtl">
+    <Card className="border-white/10 shadow-xl shadow-black/25 backdrop-blur" dir="rtl">
       <CardHeader>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <CardTitle className="flex items-center gap-2 text-lg">📋 لوحة المهام</CardTitle>
-          <div className="flex items-center gap-2 text-xs text-gray-400">
+          <div className="flex items-center gap-2 text-xs text-slate-500">
             <span className="inline-flex items-center gap-1">
-              <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" /> تحديث تلقائي كل 5 ثوانٍ
+              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_6px] shadow-emerald-400" /> تحديث تلقائي كل 5 ثوانٍ
             </span>
-            <button onClick={load} className="inline-flex items-center gap-1 hover:text-gray-600" aria-label="تحديث الآن">
+            <button onClick={load} className="inline-flex items-center gap-1 hover:text-slate-300" aria-label="تحديث الآن">
               <RefreshCw className="h-3.5 w-3.5" /> تحديث
             </button>
           </div>
@@ -86,49 +86,49 @@ export default function TasksCard() {
       <CardContent className="space-y-4">
         {/* شرائح الإحصائيات */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          <StatChip label="الإجمالي" value={stats.total} cls="bg-white border-gray-200 text-gray-800" />
-          <StatChip label="مكتملة" value={stats.completed} cls="bg-emerald-50 border-emerald-200 text-emerald-800" />
-          <StatChip label="فاشلة" value={stats.failed} cls="bg-red-50 border-red-200 text-red-700" />
-          <StatChip label="جارية" value={stats.processing} cls="bg-amber-50 border-amber-200 text-amber-800" />
+          <StatChip label="الإجمالي" value={stats.total} cls="bg-white/5 border-white/10 text-slate-200" />
+          <StatChip label="مكتملة" value={stats.completed} cls="bg-emerald-500/10 border-emerald-400/25 text-emerald-300" />
+          <StatChip label="فاشلة" value={stats.failed} cls="bg-red-500/10 border-red-400/25 text-red-300" />
+          <StatChip label="جارية" value={stats.processing} cls="bg-amber-500/10 border-amber-400/25 text-amber-300" />
         </div>
 
         {/* القائمة */}
         <div className="max-h-[26rem] overflow-y-auto space-y-2 pe-1">
           {loading ? (
-            <p className="text-sm text-gray-500 py-6 text-center">جارٍ التحميل…</p>
+            <p className="text-sm text-slate-400 py-6 text-center">جارٍ التحميل…</p>
           ) : tasks.length === 0 ? (
-            <p className="text-sm text-gray-500 py-6 text-center">لا توجد مهام بعد — استدعِ generate_image أو generate_video من أي عميل MCP.</p>
+            <p className="text-sm text-slate-400 py-6 text-center">لا توجد مهام بعد — استدعِ generate_image أو generate_video من أي عميل MCP.</p>
           ) : (
             tasks.map((t) => (
-              <div key={t.id} className="rounded-lg border bg-white p-3 space-y-2">
+              <div key={t.id} className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
                 <div className="flex flex-wrap items-center gap-2">
                   {typeBadge(t.type)}
                   {statusBadge(t)}
-                  <span className="text-xs font-mono text-gray-500 truncate max-w-[16rem]" dir="ltr">{t.model}</span>
+                  <span className="text-xs font-mono text-slate-400 truncate max-w-[16rem]" dir="ltr">{t.model}</span>
                   {t.attempts_count > 0 && (
-                    <Badge variant="outline" className="text-xs text-gray-500">محاولات: {t.attempts_count}</Badge>
+                    <Badge variant="outline" className="text-xs text-slate-400 border-white/15">محاولات: {t.attempts_count}</Badge>
                   )}
-                  <span className="text-xs text-gray-400 ms-auto">{timeAgo(t.created_at)}</span>
+                  <span className="text-xs text-slate-500 ms-auto">{timeAgo(t.created_at)}</span>
                 </div>
 
                 {(t.status === "processing" || (t.status === "completed" && t.progress < 100)) && (
-                  <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                  <div className="h-2 rounded-full bg-white/10 overflow-hidden">
                     <div
-                      className={`h-full rounded-full transition-all ${t.status === "completed" ? "bg-emerald-500" : "bg-amber-500"}`}
+                      className={`h-full rounded-full transition-all ${t.status === "completed" ? "bg-emerald-400" : "bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-400"}`}
                       style={{ width: `${Math.max(4, Math.min(100, t.progress))}%` }}
                     />
                   </div>
                 )}
 
                 {t.prompt && (
-                  <p className="text-sm text-gray-700 line-clamp-2" dir="auto">{t.prompt}</p>
+                  <p className="text-sm text-slate-300 line-clamp-2" dir="auto">{t.prompt}</p>
                 )}
 
                 {t.status === "failed" && t.error_message && (
-                  <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1 break-words" dir="auto">{t.error_message}</p>
+                  <p className="text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded px-2 py-1 break-words" dir="auto">{t.error_message}</p>
                 )}
                 {t.status === "processing" && t.error_message === "بانتظار توفر مفتاح صالح…" && (
-                  <p className="text-xs text-amber-700 bg-amber-50 rounded px-2 py-1">بانتظار توفر مفتاح صالح — ستُستأنف تلقائيًا مع استعلام get_task التالي.</p>
+                  <p className="text-xs text-amber-300 bg-amber-500/10 border border-amber-400/20 rounded px-2 py-1">بانتظار توفر مفتاح صالح — ستُستأنف تلقائيًا مع استعلام get_task التالي.</p>
                 )}
 
                 {t.result_urls.length > 0 && (
@@ -139,7 +139,7 @@ export default function TasksCard() {
                         href={u}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 rounded px-2 py-1 hover:bg-emerald-100"
+                        className="inline-flex items-center gap-1 text-xs text-cyan-300 bg-cyan-500/10 border border-cyan-400/30 rounded px-2 py-1 hover:bg-cyan-500/20"
                         dir="ltr"
                       >
                         <ExternalLink className="h-3 w-3" /> فتح الرابط

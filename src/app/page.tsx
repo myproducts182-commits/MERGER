@@ -1,6 +1,6 @@
 "use client";
 
-/** لوحة الإدارة الرئيسية — هيدر بحالة الجهوزية + ثلاث بطاقات: المفاتيح / المهام / الربط */
+/** لوحة الإدارة الرئيسية — هيدر بحالة الجهوزية + ثلاث بطاقات: المفاتيح / المهام / الربط (ثيم «أورورا» داكن) */
 import { useEffect, useState } from "react";
 import KeysCard from "@/components/dashboard/keys-card";
 import TasksCard from "@/components/dashboard/tasks-card";
@@ -30,28 +30,35 @@ export default function Dashboard() {
   const models = health?.models ?? [];
 
   return (
-    <main className="min-h-screen bg-slate-50">
-      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8">
+    <main className="relative min-h-screen overflow-hidden bg-background">
+      {/* توهجات الخلفية «أورورا» */}
+      <div aria-hidden className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-32 -start-24 h-96 w-96 rounded-full bg-violet-600/25 blur-3xl" />
+        <div className="absolute top-1/4 -end-28 h-96 w-96 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="absolute bottom-0 start-1/3 h-80 w-80 rounded-full bg-fuchsia-600/15 blur-3xl" />
+      </div>
+
+      <div className="relative mx-auto max-w-6xl px-4 py-6 sm:py-10">
         {/* الهيدر */}
-        <header className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 flex-wrap">
+        <header className="mb-7 flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 flex-wrap">
           <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              🎬 MCP Media Generator
+            <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight">
+              🎬 <span className="text-gradient">MCP Media Generator</span>
             </h1>
-            <p className="text-sm text-gray-500 mt-1">
-              خادم MCP لتوليد الصور والفيديو بالذكاء الاصطناعي ودمج المقاطع — مع تبديل تسلسلي تلقائي للمفاتيح
+            <p className="text-sm text-slate-400 mt-2 leading-relaxed">
+              توليد الصور والفيديو بأي موديل ومن أي مزود خدمة — تبديل تسلسلي تلقائي للمفاتيح ودمج المقاطع في خادم MCP واحد
             </p>
           </div>
           <div className="flex items-center gap-2 sm:ms-auto flex-wrap">
             <Badge
-              className={`px-3 py-1.5 ${dbConnected ? "bg-emerald-100 text-emerald-800 border border-emerald-200 hover:bg-emerald-100" : "bg-red-100 text-red-700 border border-red-200 hover:bg-red-100"}`}
+              className={`px-3 py-1.5 border backdrop-blur ${dbConnected ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/30 hover:bg-emerald-500/20" : "bg-red-500/15 text-red-300 border-red-400/30 hover:bg-red-500/20"}`}
             >
-              <span className={`inline-block h-2 w-2 rounded-full me-1.5 ${dbConnected ? "bg-emerald-500" : "bg-red-500"}`} />
+              <span className={`inline-block h-2 w-2 rounded-full me-1.5 ${dbConnected ? "bg-emerald-400 shadow-[0_0_8px] shadow-emerald-400" : "bg-red-400"}`} />
               {dbConnected ? "Turso متصل" : "غير متصل"}
             </Badge>
             {health && (
               <Badge
-                className={`px-3 py-1.5 border ${health.merger.healthy ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-50" : "bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-50"}`}
+                className={`px-3 py-1.5 border backdrop-blur ${health.merger.healthy ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/30 hover:bg-emerald-500/20" : "bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/20"}`}
               >
                 الدمج: {health.merger.healthy ? "جاهزة" : "غير مضبوطة"}
               </Badge>
@@ -61,13 +68,14 @@ export default function Dashboard() {
 
         {/* الموديلات المدمجة */}
         {models.length > 0 && (
-          <div className="mb-6 flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-gray-400">الموديلات المدمجة:</span>
+          <div className="mb-7 flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-slate-500">الموديلات الافتراضية:</span>
             {models.map((m) => (
-              <Badge key={m.canonical} variant="outline" className="font-mono bg-white" dir="ltr">
+              <Badge key={m.canonical} variant="outline" className="font-mono bg-white/5 border-white/15 text-slate-300" dir="ltr">
                 {m.canonical}
               </Badge>
             ))}
+            <span className="text-slate-500">— ويُقبل أي اسم موديل آخر يدعمه مزودك</span>
           </div>
         )}
 
@@ -84,7 +92,7 @@ export default function Dashboard() {
           <ConnectCard health={health} />
         </div>
 
-        <footer className="mt-10 pb-6 text-center text-xs text-gray-400">
+        <footer className="mt-10 pb-6 text-center text-xs text-slate-500">
           MCP Media Generator · روابط فقط بلا تنزيل وسائط · مفاتيح مقنعة دائمًا · تبديل تسلسلي صامت
         </footer>
       </div>

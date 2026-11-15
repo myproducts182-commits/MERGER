@@ -13,8 +13,8 @@ import { Copy, Check, Image as ImageIcon, Film, Layers, Search, ListVideo } from
 import type { HealthInfo } from "./types";
 
 const TOOLS: Array<{ name: string; desc: string; icon: React.ReactNode }> = [
-  { name: "generate_image", desc: "توليد صورة من وصف نصي (تبديل تلقائي عبر كل المفاتيح النشطة)", icon: <ImageIcon className="h-4 w-4" /> },
-  { name: "generate_video", desc: "توليد فيديو مع صوت متزامن أصلي (حوار/مؤثرات/موسيقى)", icon: <Film className="h-4 w-4" /> },
+  { name: "generate_image", desc: "توليد صورة بأي موديل يدعمه مزودك (تبديل تلقائي عبر كل المفاتيح)", icon: <ImageIcon className="h-4 w-4" /> },
+  { name: "generate_video", desc: "توليد فيديو بأي موديل مدعوم مع صوت متزامن أصلي (حوار/مؤثرات/موسيقى)", icon: <Film className="h-4 w-4" /> },
   { name: "merge_videos", desc: "دمج عدة مقاطع في فيديو واحد نهائي بالترتيب المطلوب", icon: <Layers className="h-4 w-4" /> },
   { name: "get_task", desc: "تتبع حالة أي مهمة (توليد أو دمج) بمعرّفها", icon: <Search className="h-4 w-4" /> },
   { name: "list_media", desc: "استرجاع أحدث الوسائط المخزنة بروابطها", icon: <ListVideo className="h-4 w-4" /> },
@@ -45,7 +45,7 @@ function CopyButton({ text, label }: { text: string; label?: string }) {
 
 function JsonBlock({ value }: { value: string }) {
   return (
-    <pre dir="ltr" className="text-left text-xs leading-relaxed bg-gray-950 text-gray-100 rounded-lg p-4 overflow-x-auto font-mono whitespace-pre">
+    <pre dir="ltr" className="text-left text-xs leading-relaxed bg-black/40 border border-white/10 text-slate-200 rounded-lg p-4 overflow-x-auto font-mono whitespace-pre">
       {value}
     </pre>
   );
@@ -69,7 +69,7 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
   const cursorJson = claudeJson;
 
   return (
-    <Card className="border shadow-sm" dir="rtl">
+    <Card className="border-white/10 shadow-xl shadow-black/25 backdrop-blur" dir="rtl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">🔌 ربط السيرفر</CardTitle>
         <CardDescription>انسخ رابط نقطة MCP وأضفه لأي عميل مدعوم — الخادم يتحدث بروتوكول MCP Streamable HTTP.</CardDescription>
@@ -77,7 +77,7 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
       <CardContent className="space-y-4">
         {/* الرابط المطلق */}
         <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
-          <Input readOnly value={mcpUrl} dir="ltr" className="font-mono text-sm bg-gray-50" aria-label="رابط MCP" />
+          <Input readOnly value={mcpUrl} dir="ltr" className="font-mono text-sm bg-black/30 border-white/10" aria-label="رابط MCP" />
           <CopyButton text={mcpUrl} label="نسخ الرابط" />
         </div>
 
@@ -92,7 +92,7 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
           <TabsContent value="chatgpt" className="space-y-2 pt-3">
             <JsonBlock value={chatgptJson} />
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-gray-500" dir="auto">
+              <p className="text-xs text-slate-400" dir="auto">
                 في ChatGPT: Settings → Connectors → Create → Custom MCP server وضع الرابط في «Server URL».
               </p>
               <CopyButton text={chatgptJson} />
@@ -102,7 +102,7 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
           <TabsContent value="claude" className="space-y-2 pt-3">
             <JsonBlock value={claudeJson} />
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-gray-500" dir="auto">
+              <p className="text-xs text-slate-400" dir="auto">
                 أضفه إلى ملف claude_desktop_config.json ثم أعد تشغيل التطبيق.
               </p>
               <CopyButton text={claudeJson} />
@@ -112,7 +112,7 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
           <TabsContent value="cursor" className="space-y-2 pt-3">
             <JsonBlock value={cursorJson} />
             <div className="flex items-center justify-between gap-2 flex-wrap">
-              <p className="text-xs text-gray-500" dir="auto">
+              <p className="text-xs text-slate-400" dir="auto">
                 أضفه إلى mcp.json في Cursor / Windsurf / Cline ثم حدّث قائمة MCP.
               </p>
               <CopyButton text={cursorJson} />
@@ -121,21 +121,21 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
         </Tabs>
 
         {health?.authRequired && (
-          <p className="text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded px-3 py-2">
+          <p className="text-xs bg-amber-500/10 text-amber-200 border border-amber-400/30 rounded px-3 py-2">
             الحماية مفعلة بـ MCP_ACCESS_TOKEN — استبدل <span dir="ltr" className="font-mono">&lt;MCP_ACCESS_TOKEN&gt;</span> في JSON أعلاه بالقيمة الفعلية.
           </p>
         )}
 
         {/* رقائق الأدوات */}
         <div>
-          <h3 className="text-sm font-semibold text-gray-700 mb-2">الأدوات الخمس المتاحة عبر MCP</h3>
+          <h3 className="text-sm font-semibold text-slate-300 mb-2">الأدوات الخمس المتاحة عبر MCP</h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {TOOLS.map((t) => (
-              <div key={t.name} className="flex items-start gap-2 rounded-lg border bg-white px-3 py-2">
-                <span className="mt-0.5 text-emerald-700">{t.icon}</span>
+              <div key={t.name} className="flex items-start gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+                <span className="mt-0.5 text-violet-300">{t.icon}</span>
                 <div className="min-w-0">
-                  <div className="text-sm font-mono font-medium" dir="ltr">{t.name}</div>
-                  <div className="text-xs text-gray-500">{t.desc}</div>
+                  <div className="text-sm font-mono font-medium text-slate-200" dir="ltr">{t.name}</div>
+                  <div className="text-xs text-slate-400">{t.desc}</div>
                 </div>
               </div>
             ))}
@@ -143,8 +143,8 @@ export default function ConnectCard({ health }: { health: HealthInfo | null }) {
         </div>
 
         {/* ملاحظة كهرمانية */}
-        <p className="text-sm bg-amber-50 text-amber-900 border border-amber-200 rounded-lg px-3 py-2 leading-relaxed">
-          ⚠️ الفيديو يحتاج دقائق: يعيد السيرفر task_id فورًا، ويتابَع تلقائيًا بـ get_task كل 10 ثوانٍ — وعند اكتمال المهمة يُعرض الرابط في الدردشة ويتوقف.
+        <p className="text-sm bg-amber-500/10 text-amber-200 border border-amber-400/30 rounded-lg px-3 py-2 leading-relaxed">
+          ⚠️ الفيديو يحتاج دقائق: يعيد السيرفر task_id فورًا، ويتابع تلقائيًا بـ get_task كل 10 ثوانٍ — وعند اكتمال المهمة يُعرض الرابط في الدردشة ويتوقف.
           أثناء الانتظار يُبَث تقدم حي (Progress notifications) حتى لا تنقطع العملية.
         </p>
       </CardContent>

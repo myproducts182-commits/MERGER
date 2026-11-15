@@ -1,7 +1,8 @@
 "use client";
 
 /**
- * مدير المفاتيح: إضافة (مزود + تسمية + مفتاح) وقائمة مقنعة دائمًا مع حالة وعدّادات وأزرار تعطيل/تنشيط/حذف.
+ * مدير المفاتيح: إضافة (أي مزود + تسمية + مفتاح + رابط API مخصص للمزودات الخارجية)
+ * وقائمة مقنعة دائمًا مع حالة وعدّادات وأزرار تعطيل/تنشيط/حذف.
  * قاعدة ثابتة: التجربة تسلسلية حسب ترتيب الإضافة مع تبديل فوري تلقائي عند أي خطأ أو نفاد رصيد.
  */
 import { useCallback, useEffect, useState } from "react";
@@ -12,15 +13,22 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, RefreshCw, Trash2, Power, Loader2 } from "lucide-react";
+import { Plus, RefreshCw, Trash2, Power, Loader2, Globe } from "lucide-react";
 import { timeAgo, type KeyInfo } from "./types";
 
 const PROVIDER_LABEL: Record<string, string> = { kie: "kie.ai", cometapi: "CometAPI" };
+/** المزودات المعروفة — ما عداها «مخصص» ويلزمه رابط API */
+const KNOWN_PROVIDERS = ["kie", "cometapi"];
+
+const STATUS_BADGE: Record<KeyInfo["status"], { label: string; cls: string }> = {
+  active: { label: "نشط", cls: "bg-emerald-500/15 text-emerald-300 border-emerald-400/30 hover:bg-emerald-500/25" },
+  exhausted: { label: "مستنزف", cls: "bg-amber-500/15 text-amber-300 border-amber-400/30 hover:bg-amber-500/25" },
+  disabled: { label: "معطّل", cls: "bg-slate-500/20 text-slate-400 border-slate-400/30 hover:bg-slate-500/30" },
+};
 
 function statusBadge(status: KeyInfo["status"]) {
-  if (status === "active") return <Badge className="bg-emerald-100 text-emerald-800 border-emerald-200 hover:bg-emerald-100">نشط</Badge>;
-  if (status === "exhausted") return <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100">مستنزف</Badge>;
-  return <Badge className="bg-gray-100 text-gray-600 border-gray-200 hover:bg-gray-100">معطّل</Badge>;
+  const s = STATUS_BADGE[status];
+  return <Badge className={s.cls}>{s.label}</Badge>;
 }
 
 export default function KeysCard() {
@@ -28,10 +36,14 @@ export default function KeysCard() {
   const [provider, setProvider] = useState("kie");
   const [label, setLabel] = useState("");
   const [apiKey, setApiKey] = useState("");
+  const [baseUrl, setBaseUrl] = useState("");
+  const [apiStyle, setApiStyle] = useState("kie");
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const isCustom = !KNOWN_PROVIDERS.includes(provider.trim().toLowerCase());
 
   const load = useCallback(async () => {
     try {
@@ -58,7 +70,13 @@ export default function KeysCard() {
       const res = await fetch("/api/keys", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, api_key: apiKey, label }),
+        body: JSON.stringify({
+          provider: provider.trim().toLowerCase(),
+          api_key: apiKey,
+          label,
+          base_url: baseUrl.trim() || undefined,
+          api_style: isCustom ? apiStyle : undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -67,6 +85,7 @@ export default function KeysCard() {
         setMessage({ kind: "ok", text: `تمت إضافة المفتاح ${data.masked ?? ""} بنجاح — سيُجرَّب أولًا حسب ترتيب الإضافة.` });
         setApiKey("");
         setLabel("");
+        setBaseUrl("");
         await load();
       }
     } catch {
@@ -102,29 +121,34 @@ export default function KeysCard() {
   }
 
   return (
-    <Card className="border shadow-sm" dir="rtl">
+    <Card className="border-white/10 shadow-xl shadow-black/25 backdrop-blur" dir="rtl">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-lg">
           🔑 مدير المفاتيح
         </CardTitle>
         <CardDescription>
-          أضف عدة مفاتيح لكل مزود — التجربة تسلسلية (أول مفتاح ثم التالي ثم التالي) مع تبديل فوري تلقائي عند أي خطأ أو نفاد رصيد دون توقف.
+          أي مزود خدمة يقبل المفاتيح: اختر مزودًا معروفًا أو أدخل اسم مزود مخصص مع رابط API — والتجربة تسلسلية (أول مفتاح ثم التالي) مع تبديل فوري تلقائي عند أي خطأ أو نفاد رصيد.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* نموذج الإضافة */}
+        {/* نموذج الإضافة — الصف الأول */}
         <div className="grid gap-3 sm:grid-cols-[150px_1fr_1fr_auto] items-end">
           <div className="space-y-1.5">
             <Label htmlFor="provider">المزود</Label>
-            <Select value={provider} onValueChange={setProvider} dir="rtl">
-              <SelectTrigger id="provider" className="w-full">
-                <SelectValue placeholder="اختر المزود" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="kie">kie.ai</SelectItem>
-                <SelectItem value="cometapi">CometAPI</SelectItem>
-              </SelectContent>
-            </Select>
+            <Input
+              id="provider"
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              list="provider-suggestions"
+              placeholder="kie / cometapi / مخصص"
+              dir="ltr"
+              className="font-mono text-sm"
+              autoComplete="off"
+            />
+            <datalist id="provider-suggestions">
+              <option value="kie" />
+              <option value="cometapi" />
+            </datalist>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="keylabel">تسمية (اختياري)</Label>
@@ -142,22 +166,52 @@ export default function KeysCard() {
               dir="ltr"
             />
           </div>
-          <Button onClick={addKey} disabled={busy || !apiKey.trim()} className="min-h-11">
+          <Button onClick={addKey} disabled={busy || !apiKey.trim() || !provider.trim()} className="min-h-11 bg-gradient-to-l from-violet-500 to-fuchsia-500 text-white hover:from-violet-400 hover:to-fuchsia-400">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
             إضافة
           </Button>
         </div>
 
+        {/* الصف الثاني — خيارات المزود المخصص */}
+        <div className="grid gap-3 sm:grid-cols-[1fr_240px] items-end">
+          <div className="space-y-1.5">
+            <Label htmlFor="baseurl" className="flex items-center gap-1.5">
+              <Globe className="h-3.5 w-3.5" /> رابط API مخصص {isCustom ? <span className="text-amber-300">(إلزامي للمزود المخصص)</span> : <span className="text-slate-500">(اختياري)</span>}
+            </Label>
+            <Input
+              id="baseurl"
+              value={baseUrl}
+              onChange={(e) => setBaseUrl(e.target.value)}
+              placeholder="https://api.provider.com"
+              dir="ltr"
+              className="font-mono text-sm"
+              autoComplete="off"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="apistyle">نمط التوافق {isCustom ? "" : <span className="text-slate-500">(للمخصص)</span>}</Label>
+            <Select value={apiStyle} onValueChange={setApiStyle} dir="rtl" disabled={!isCustom}>
+              <SelectTrigger id="apistyle" className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="kie">توافق kie.ai — Jobs API</SelectItem>
+                <SelectItem value="openai">توافق OpenAI — Images/Videos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {message && (
-          <p className={`text-sm rounded-md px-3 py-2 ${message.kind === "error" ? "bg-red-50 text-red-700" : "bg-emerald-50 text-emerald-700"}`} dir="auto">
+          <p className={`text-sm rounded-md px-3 py-2 border ${message.kind === "error" ? "bg-red-500/10 text-red-300 border-red-400/30" : "bg-emerald-500/10 text-emerald-300 border-emerald-400/30"}`} dir="auto">
             {message.text}
           </p>
         )}
 
         {/* القائمة */}
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-gray-700">المفاتيح ({keys.length})</h3>
-          <Button variant="ghost" size="sm" onClick={load} className="text-gray-500">
+          <h3 className="text-sm font-semibold text-slate-300">المفاتيح ({keys.length})</h3>
+          <Button variant="ghost" size="sm" onClick={load} className="text-slate-400 hover:text-slate-200">
             <RefreshCw className="h-4 w-4" /> تحديث
           </Button>
         </div>
@@ -165,26 +219,34 @@ export default function KeysCard() {
         <ScrollArea className="max-h-96">
           <div className="space-y-2 pe-2">
             {loading ? (
-              <p className="text-sm text-gray-500 py-6 text-center">جارٍ التحميل…</p>
+              <p className="text-sm text-slate-400 py-6 text-center">جارٍ التحميل…</p>
             ) : keys.length === 0 ? (
-              <p className="text-sm text-gray-500 py-6 text-center">لا توجد مفاتيح بعد — أضف مفتاحًا واحدًا على الأقل لبدء التوليد.</p>
+              <p className="text-sm text-slate-400 py-6 text-center">لا توجد مفاتيح بعد — أضف مفتاحًا واحدًا على الأقل لبدء التوليد.</p>
             ) : (
               keys.map((k) => (
-                <div key={k.id} className="rounded-lg border bg-white p-3 space-y-2">
+                <div key={k.id} className="rounded-lg border border-white/10 bg-white/5 p-3 space-y-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    <Badge variant="outline" className="font-mono text-xs" dir="ltr">{PROVIDER_LABEL[k.provider] ?? k.provider}</Badge>
+                    <Badge variant="outline" className="font-mono text-xs bg-violet-500/15 text-violet-300 border-violet-400/30" dir="ltr">
+                      {PROVIDER_LABEL[k.provider] ?? k.provider}
+                    </Badge>
                     {statusBadge(k.status)}
-                    {k.label ? <span className="text-sm font-medium">{k.label}</span> : null}
-                    <span className="text-xs text-gray-400 ms-auto">{timeAgo(k.created_at)}</span>
+                    {k.label ? <span className="text-sm font-medium text-slate-200">{k.label}</span> : null}
+                    <span className="text-xs text-slate-500 ms-auto">{timeAgo(k.created_at)}</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600">
-                    <span>الاستخدام: <b>{k.usage_count}</b></span>
-                    <span>نجاح: <b className="text-emerald-700">{k.success_count}</b></span>
-                    <span>فشل: <b className="text-red-700">{k.fail_count}</b></span>
+                  {k.base_url && (
+                    <p className="text-xs text-slate-400 flex items-center gap-1.5" dir="ltr">
+                      <Globe className="h-3 w-3" /> <span className="font-mono">{k.base_url}</span>
+                      {k.api_style && <span className="rounded bg-white/10 px-1.5 py-0.5">{k.api_style === "openai" ? "OpenAI-compatible" : "kie Jobs API"}</span>}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                    <span>الاستخدام: <b className="text-slate-200">{k.usage_count}</b></span>
+                    <span>نجاح: <b className="text-emerald-300">{k.success_count}</b></span>
+                    <span>فشل: <b className="text-red-300">{k.fail_count}</b></span>
                     <span>آخر استخدام: {timeAgo(k.last_used_at)}</span>
                   </div>
                   {k.last_error && (
-                    <p className="text-xs text-red-600 bg-red-50 rounded px-2 py-1 break-words" dir="auto">آخر خطأ: {k.last_error}</p>
+                    <p className="text-xs text-red-300 bg-red-500/10 border border-red-400/20 rounded px-2 py-1 break-words" dir="auto">آخر خطأ: {k.last_error}</p>
                   )}
                   <div className="flex items-center gap-2">
                     <Button
@@ -192,7 +254,7 @@ export default function KeysCard() {
                       size="sm"
                       onClick={() => toggleStatus(k)}
                       disabled={rowBusy === k.id}
-                      className="min-h-9"
+                      className="min-h-9 border-white/15 hover:bg-white/10"
                     >
                       {rowBusy === k.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Power className="h-4 w-4" />}
                       {k.status === "disabled" ? "تنشيط" : "تعطيل"}
@@ -202,7 +264,7 @@ export default function KeysCard() {
                       size="sm"
                       onClick={() => removeKey(k)}
                       disabled={rowBusy === k.id}
-                      className="min-h-9 text-red-600 hover:text-red-700 hover:bg-red-50"
+                      className="min-h-9 border-white/15 text-red-300 hover:text-red-200 hover:bg-red-500/15"
                     >
                       <Trash2 className="h-4 w-4" /> حذف
                     </Button>

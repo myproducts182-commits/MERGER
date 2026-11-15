@@ -7,15 +7,16 @@
  *      "resultJson":"{\"resultUrls\":[\"...\"]}",  // نص JSON داخل JSON — يحتاج JSON.parse ثانيًا
  *      "failMsg":"...","failCode":...,"successFlag":0|1}}
  */
-import { ProviderError, type CheckResult, type ProviderAdapter } from "../types";
+import { ProviderError, type AdapterCallOpts, type CheckResult, type ProviderAdapter } from "../types";
 
 const BASE = ((process.env.KIE_API_BASE || "https://api.kie.ai").trim()).replace(/\/+$/, "");
 
 /** نداء موحد: يرمي ProviderError بالحالة الداخلية (code) أو حالة HTTP عند تعذر التحليل */
-async function kieFetch(path: string, key: string, init?: RequestInit & { timeoutMs?: number }): Promise<Record<string, unknown>> {
+async function kieFetch(path: string, key: string, init?: RequestInit & { timeoutMs?: number }, baseUrlOverride?: string | null): Promise<Record<string, unknown>> {
+  const base = ((baseUrlOverride || BASE).trim()).replace(/\/+$/, "");
   let res: Response;
   try {
-    res = await fetch(`${BASE}${path}`, {
+    res = await fetch(`${base}${path}`, {
       ...init,
       headers: {
         Authorization: `Bearer ${key}`,
@@ -51,18 +52,18 @@ async function kieFetch(path: string, key: string, init?: RequestInit & { timeou
 }
 
 export const kieAdapter: ProviderAdapter = {
-  async createTask(key, providerModel, input) {
+  async createTask(key, providerModel, input, opts?: AdapterCallOpts) {
     const data = await kieFetch("/api/v1/jobs/createTask", key, {
       method: "POST",
       body: JSON.stringify({ model: providerModel, input }),
-    });
+    }, opts?.baseUrl);
     const taskId = typeof data.taskId === "string" ? data.taskId : undefined;
     if (!taskId) throw new ProviderError(undefined, "استجابة createTask بدون taskId");
     return { providerTaskId: taskId };
   },
 
-  async checkTask(key, providerTaskId): Promise<CheckResult> {
-    const data = await kieFetch(`/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(providerTaskId)}`, key, { method: "GET" });
+  async checkTask(key, providerTaskId, opts?: AdapterCallOpts): Promise<CheckResult> {
+    const data = await kieFetch(`/api/v1/jobs/recordInfo?taskId=${encodeURIComponent(providerTaskId)}`, key, { method: "GET" }, opts?.baseUrl);
     const state = String(data.state ?? "").toLowerCase();
 
     if (state === "success" || data.successFlag === 1) {

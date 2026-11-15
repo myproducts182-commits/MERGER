@@ -5,11 +5,13 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { runGeneration, refreshTask, runMerge, listMedia, type ToolResult } from "./orchestrator";
+import { defaultModelFor } from "./models";
 import type { MediaType } from "./types";
 
-export const SERVER_INFO = { name: "media-generator-mcp", version: "1.2.0" } as const;
+export const SERVER_INFO = { name: "media-generator-mcp", version: "1.3.0" } as const;
 
-export const SERVER_INSTRUCTIONS = `AI media generation server (kie.ai + CometAPI with automatic sequential multi-key failover, plus video merging).
+export const SERVER_INSTRUCTIONS = `AI media generation server (works with ANY provider and ANY model name — multi-key automatic sequential failover, plus video merging).
+Every generate_image / generate_video call accepts an optional 'model' argument: pass any model name your configured provider supports (e.g. gpt-image-2-6/flare-text-to-image, seedream-4.0, nano-banana, flux-1.1-pro for images; grok-imagine-video-1-5-preview, sora-2, veo3, kling-v2-master for videos). If omitted, the server's default model is used.
 Workflow: call generate_image or generate_video. If the response contains finished URLs, show them to the user.
 If it returns a task_id with status PROCESSING, call get_task with that task_id every ~10 seconds until status is completed (show the URL) or failed (explain why).
 IMPORTANT: the server automatically switches API keys in strict order on any failure (exhausted balance, invalid key, rate limits) and continues the SAME task under the same task_id — you will never encounter key/balance errors. Never stop or warn the user about keys or balances; just keep polling get_task until the result appears.
@@ -39,17 +41,19 @@ function withProgress(
 export function buildMediaServer(): McpServer {
   const server = new McpServer(SERVER_INFO, { instructions: SERVER_INSTRUCTIONS });
 
-  // 1) generate_image
+  // 1) generate_image — أي موديل صور يدعمه مزودك (الافتراضي قابل للتجاوز بمتغيرات البيئة)
   server.registerTool(
     "generate_image",
     {
       description:
-        "Generate an image with gpt-image-2-6/flare-text-to-image (automatic failover across all active keys in strict order). " +
+        "Generate an image with ANY image model your configured provider supports (optional 'model' argument — e.g. gpt-image-2-6/flare-text-to-image, seedream-4.0, nano-banana, flux-1.1-pro; default: " +
+        defaultModelFor("image") +
+        "). Automatic failover across all active keys in strict order. " +
         "Returns the ready image URL if generation completes within the wait window; otherwise returns a task_id — " +
         "call get_task with it every ~10 seconds until status is completed (then show the URL and stop) or failed (explain why).",
       inputSchema: {
         prompt: z.string().min(1).describe("What to draw. Detailed prompts give better results."),
-        model: z.enum(["gpt-image-2-6/flare-text-to-image", "gpt-image-2.6/flare-text-to-image"]).default("gpt-image-2-6/flare-text-to-image"),
+        model: z.string().min(1).optional().describe("Any image model name supported by your provider — passed as-is. Omit for the server default."),
         aspect_ratio: z.enum(["auto", "1:1", "3:2", "2:3", "4:3", "3:4", "5:4", "4:5", "16:9", "9:16", "2:1", "1:2", "21:9", "9:21", "3:1", "1:3"]).default("auto"),
         resolution: z.enum(["1K", "2K", "4K"]).default("1K"),
         background: z.enum(["auto", "transparent", "opaque"]).default("auto").describe("Only applied at 1K."),
@@ -62,17 +66,19 @@ export function buildMediaServer(): McpServer {
     }) as never,
   );
 
-  // 2) generate_video
+  // 2) generate_video — أي موديل فيديو يدعمه مزودك
   server.registerTool(
     "generate_video",
     {
       description:
-        "Generate a video with grok-imagine-video-1-5-preview (native synchronized audio — dialogue, sfx, music — with optional image-to-video). " +
+        "Generate a video with ANY video model your configured provider supports (optional 'model' argument — e.g. grok-imagine-video-1-5-preview, sora-2, veo3, kling-v2-master; default: " +
+        defaultModelFor("video") +
+        ") with native synchronized audio (dialogue, sfx, music) and optional image-to-video. " +
         "Video takes minutes: a short wait streams live progress, then a task_id is returned — track it with get_task every ~10 seconds.",
       inputSchema: {
         prompt: z.string().max(4096).describe("Scene description. Dialogue in the prompt is spoken in the video."),
         image_url: z.string().optional().describe("Optional public image URL as the first frame (image-to-video)."),
-        model: z.enum(["grok-imagine-video-1-5-preview", "grok-imagine-video-1.5-preview"]).default("grok-imagine-video-1-5-preview"),
+        model: z.string().min(1).optional().describe("Any video model name supported by your provider — passed as-is. Omit for the server default."),
         aspect_ratio: z.enum(["auto", "1:1", "16:9", "9:16", "3:2", "2:3"]).default("auto"),
         resolution: z.enum(["480p", "720p", "1080p"]).default("480p"),
         enable_audio: z.boolean().default(true),

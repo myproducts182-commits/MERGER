@@ -10,10 +10,10 @@
  *     «بانتظار توفر مفتاح صالح…» وتُعاد المحاولة مع كل get_task بعد تهدئة ~45 ثانية.
  *  4) نموذج الذكاء الاصطناعي لا يرى أخطاء مفاتيح/رصيد أبدًا — لا شيء يخرج للعميل يحويها.
  */
-import { resolveModel, availableModelsText, type ModelDef } from "./models";
+import { resolveModelFlexible, defaultModelFor, availableModelsText, type ModelDef } from "./models";
 import { getKeyPool, getKeyById, classifyProviderError, isKeyOrBalancePattern, updateKeyCounters } from "./keys";
 import { insertTask, getTask, updateTask, type TaskPatch } from "./tasks";
-import { ADAPTERS } from "./providers";
+import { adapterForKey } from "./providers";
 import {
   mergerCreateJob,
   mergerProcessJob,
@@ -122,17 +122,19 @@ async function tryCreateOnPool(opts: {
   let lastError = "";
   for (let i = opts.startIndex; i < opts.pool.length; i++) {
     const key = opts.pool[i];
-    const provider = key.provider as ProviderId;
-    const adapter = ADAPTERS[provider];
-    const providerModel = opts.modelDef.providerModel[provider];
+    const provider = key.provider;
+    const adapter = adapterForKey(key);
+    // موديل مدمج → اسم المزود الخاص به؛ مخصص → يُمرَّر كما هو لكل المزودين
+    const providerModel = opts.modelDef.providerModel[provider] ?? opts.modelDef.canonical;
+    const callOpts = { baseUrl: key.base_url ?? undefined };
     try {
       if (opts.taskType === "image" && adapter.createImageSync) {
-        const { urls } = await adapter.createImageSync(key.api_key, providerModel, opts.input);
+        const { urls } = await adapter.createImageSync(key.api_key, providerModel, opts.input, callOpts);
         await updateKeyCounters(key, { ok: true });
         await updateTask(opts.taskId, { append_attempt: attempt(provider, key, true) });
         return { ok: true, provider, key, immediateUrls: urls };
       }
-      const { providerTaskId } = await adapter.createTask(key.api_key, providerModel, opts.input);
+      const { providerTaskId } = await adapter.createTask(key.api_key, providerModel, opts.input, callOpts);
       await updateKeyCounters(key, { ok: true });
       await updateTask(opts.taskId, { append_attempt: attempt(provider, key, true) });
       return { ok: true, provider, key, providerTaskId };
@@ -173,9 +175,9 @@ async function pollGenerationTask(taskId: string, modelDef: ModelDef, state: Pol
   | { kind: "switched"; patch: TaskPatch }
   | { kind: "waiting-for-key" }
 > {
-  const adapter = ADAPTERS[state.provider];
+  const adapter = adapterForKey(state.key);
   try {
-    const st = await adapter.checkTask(state.key.api_key, state.providerTaskId);
+    const st = await adapter.checkTask(state.key.api_key, state.providerTaskId, { baseUrl: state.key.base_url ?? undefined });
     if (st.status === "completed" && st.urls && st.urls.length > 0) {
       return { kind: "completed", urls: st.urls };
     }
@@ -255,17 +257,23 @@ export async function runGeneration(opts: {
     return failResult("❌ الحقل prompt مطلوب: اكتب وصفًا لما تريد توليده.");
   }
 
-  // 1) توحيد اسم الموديل — غير معروف → خطأ معطيات فوري
-  const modelDef = resolveModel(String(args.model ?? (opts.type === "image" ? "gpt-image-2-6/flare-text-to-image" : "grok-imagine-video-1-5-preview")), opts.type);
-  if (!modelDef) {
-    const modelStr = String(args.model ?? "");
-    return failResult(`❌ موديل غير معروف: ${modelStr || "(فارغ)"}.\nالمتاح: ${availableModelsText()}`);
+  // 1) حل اسم الموديل بمرونة كاملة: مدمج (بأي صيغة) أو أي اسم مخصص يمرَّر كما هو — والافتراضي قابل للتجاوز بمتغيرات البيئة
+  const requestedModel = String(args.model ?? "").trim() || defaultModelFor(opts.type);
+  const resolved = resolveModelFlexible(requestedModel, opts.type);
+  if (!resolved.ok) {
+    if (resolved.reason === "wrong-type") {
+      const other = opts.type === "image" ? "generate_video" : "generate_image";
+      return failResult(`❌ «${resolved.requested}» موديل ${opts.type === "image" ? "فيديو" : "صور"} — استخدم أداة ${other} له، أو اختر موديلًا من نوع ${opts.type === "image" ? "الصور" : "الفيديو"}.\nالمتاح مدمج: ${availableModelsText()}`);
+    }
+    return failResult(`❌ اسم موديل غير صالح: ${resolved.requested || "(فارغ)"} — استخدم أحرفًا لاتينية وأرقامًا ونقاطًا/شرطات فقط.\nالمدمج: ${availableModelsText()}`);
   }
+  const modelDef = resolved.def;
 
   // 2) مجمّع المفاتيح — فارغ → رد no_keys (حالة إعداد تُذكر للعميل حرفيًا)
+  // موديل مدمج → مفاتيح مزوديه؛ موديل مخصص → كل المفاتيح النشطة أيًا كان مزودها
   const pool = await getKeyPool(modelDef.providers);
   if (pool.length === 0) {
-    return failResult(`❌ لا توجد مفاتيح نشطة لخدمة ${modelDef.canonical}. أضف مفتاحًا واحدًا على الأقل من واجهة الإدارة، ثم أعد المحاولة.`);
+    return failResult(`❌ لا توجد مفاتيح نشطة للموديل ${modelDef.canonical}. أضف مفتاحًا واحدًا على الأقل من واجهة الإدارة، ثم أعد المحاولة.`);
   }
 
   // 3) بناء المعطيات الأصلية (تُخزن كاملة لإعادة الإنشاء عند التبديل)
@@ -406,10 +414,11 @@ export async function refreshTask(taskId: string): Promise<ToolResult> {
     return refreshMergeTask(task);
   }
 
-  const modelDef = resolveModel(task.model);
-  if (!modelDef) {
-    return failResult(`❌ فشلت المهمة: موديل غير معروف في السجل (${task.model})`);
+  const resolved = resolveModelFlexible(task.model, task.type === "video" ? "video" : "image");
+  if (!resolved.ok) {
+    return failResult(`❌ فشلت المهمة: اسم موديل غير صالح في السجل (${task.model})`);
   }
+  const modelDef = resolved.def;
 
   // مهمة جارية لم تنشأ بعد على أي مزود → أعد المحاولة على كل المفاتيح (بتهدئة ~45 ثانية)
   if (!task.provider || !task.provider_task_id || !task.key_id) {
