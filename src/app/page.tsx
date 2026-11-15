@@ -110,7 +110,7 @@ export default function Dashboard() {
 
         <footer className="mt-10 pb-6 text-center text-xs text-slate-500">
           MCP Media Generator · روابط فقط بلا تنزيل وسائط · مفاتيح مقنعة دائمًا · تبديل تسلسلي صامت
-          <span className="mt-1 block" dir="ltr">build v2026.11.15-b</span>
+          <span className="mt-1 block" dir="ltr">build v2026.11.15-c</span>
         </footer>
       </div>
     </main>

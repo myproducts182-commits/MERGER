@@ -5,7 +5,7 @@
  * وقائمة مقنعة دائمًا مع حالة وعدّادات وأزرار تعطيل/تنشيط/حذف.
  * قاعدة ثابتة: التجربة تسلسلية حسب ترتيب الإضافة مع تبديل فوري تلقائي عند أي خطأ أو نفاد رصيد.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,18 +33,21 @@ function statusBadge(status: KeyInfo["status"]) {
 
 export default function KeysCard() {
   const [keys, setKeys] = useState<KeyInfo[]>([]);
-  const [provider, setProvider] = useState("kie");
-  const [label, setLabel] = useState("");
-  const [apiKey, setApiKey] = useState("");
-  const [baseUrl, setBaseUrl] = useState("");
   const [apiStyle, setApiStyle] = useState("kie");
   const [busy, setBusy] = useState(false);
   const [rowBusy, setRowBusy] = useState<string | null>(null);
   const [message, setMessage] = useState<{ kind: "error" | "ok"; text: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-
-  const isCustom = !KNOWN_PROVIDERS.includes(provider.trim().toLowerCase());
+  /**
+   * حقول غير متحكم بها — تُقرأ قيمها من DOM عند الإرسال مباشرة.
+   * الحشو التلقائي للمتصفح والإضافات لا يطلقان onChange دائمًا، فتظهر القيمة في الحقل
+   * بينما حالة React فارغة — القراءة من DOM تقتل هذه المشكلة من الجذر.
+   */
+  const providerRef = useRef<HTMLInputElement>(null);
+  const labelRef = useRef<HTMLInputElement>(null);
+  const apiKeyRef = useRef<HTMLInputElement>(null);
+  const baseUrlRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -67,12 +70,18 @@ export default function KeysCard() {
 
   async function addKey() {
     setMessage(null);
+    // قراءة القيم من DOM مباشرة عند النقر — أضمن من حالة React (الحشو التلقائي لا يطلق onChange دائمًا)
+    const provider = (providerRef.current?.value ?? "").trim().toLowerCase();
+    const apiKey = (apiKeyRef.current?.value ?? "").trim();
+    const label = (labelRef.current?.value ?? "").trim();
+    const baseUrl = (baseUrlRef.current?.value ?? "").trim();
+    const isCustom = !KNOWN_PROVIDERS.includes(provider);
     // الزر لا يُعطَّل أبدًا — نتحقق عند النقر ونعرض سبب الرفض بوضوح حتى لا يبدو الزر «ميتًا»
-    if (!apiKey.trim()) {
+    if (!apiKey) {
       setMessage({ kind: "error", text: "ألصق مفتاح API في حقل «المفتاح» أولًا، ثم اضغط إضافة." });
       return;
     }
-    if (!provider.trim()) {
+    if (!provider) {
       setMessage({ kind: "error", text: "أدخل اسم المزود (مثال: kie أو cometapi أو أي اسم مخصص)." });
       return;
     }
@@ -82,10 +91,10 @@ export default function KeysCard() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          provider: provider.trim().toLowerCase(),
+          provider,
           api_key: apiKey,
           label,
-          base_url: baseUrl.trim() || undefined,
+          base_url: baseUrl || undefined,
           api_style: isCustom ? apiStyle : undefined,
         }),
       });
@@ -94,9 +103,10 @@ export default function KeysCard() {
         setMessage({ kind: "error", text: data.error || `فشلت الإضافة (رمز ${res.status})` });
       } else {
         setMessage({ kind: "ok", text: `تمت إضافة المفتاح ${data.masked ?? ""} بنجاح — سيُجرَّب أولًا حسب ترتيب الإضافة.` });
-        setApiKey("");
-        setLabel("");
-        setBaseUrl("");
+        if (providerRef.current) providerRef.current.value = "kie";
+        if (labelRef.current) labelRef.current.value = "";
+        if (apiKeyRef.current) apiKeyRef.current.value = "";
+        if (baseUrlRef.current) baseUrlRef.current.value = "";
         await load();
       }
     } catch {
@@ -147,9 +157,9 @@ export default function KeysCard() {
           <div className="space-y-1.5">
             <Label htmlFor="provider">المزود</Label>
             <Input
+              ref={providerRef}
               id="provider"
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
+              defaultValue="kie"
               list="provider-suggestions"
               placeholder="kie / cometapi / مخصص"
               dir="ltr"
@@ -163,16 +173,15 @@ export default function KeysCard() {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="keylabel">تسمية (اختياري)</Label>
-            <Input id="keylabel" value={label} onChange={(e) => setLabel(e.target.value)} placeholder="مثال: الحساب الرئيسي" />
+            <Input ref={labelRef} id="keylabel" placeholder="مثال: الحساب الرئيسي" />
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="apikey">المفتاح</Label>
             <Input
+              ref={apiKeyRef}
               id="apikey"
               type="password"
-              autoComplete="off"
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
+              autoComplete="new-password"
               placeholder="الصق مفتاح API هنا"
               dir="ltr"
             />
@@ -187,12 +196,11 @@ export default function KeysCard() {
         <div className="grid gap-3 sm:grid-cols-[1fr_240px] items-end">
           <div className="space-y-1.5">
             <Label htmlFor="baseurl" className="flex items-center gap-1.5">
-              <Globe className="h-3.5 w-3.5" /> رابط API مخصص {isCustom ? <span className="text-amber-300">(إلزامي للمزود المخصص)</span> : <span className="text-slate-500">(اختياري)</span>}
+              <Globe className="h-3.5 w-3.5" /> رابط API مخصص <span className="text-amber-300">(إلزامي لأي مزود خارج kie و cometapi)</span>
             </Label>
             <Input
+              ref={baseUrlRef}
               id="baseurl"
-              value={baseUrl}
-              onChange={(e) => setBaseUrl(e.target.value)}
               placeholder="https://api.provider.com"
               dir="ltr"
               className="font-mono text-sm"
@@ -200,8 +208,8 @@ export default function KeysCard() {
             />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="apistyle">نمط التوافق {isCustom ? "" : <span className="text-slate-500">(للمخصص)</span>}</Label>
-            <Select value={apiStyle} onValueChange={setApiStyle} dir="rtl" disabled={!isCustom}>
+            <Label htmlFor="apistyle">نمط التوافق <span className="text-slate-500">(للمزود المخصص)</span></Label>
+            <Select value={apiStyle} onValueChange={setApiStyle} dir="rtl">
               <SelectTrigger id="apistyle" className="w-full">
                 <SelectValue />
               </SelectTrigger>
